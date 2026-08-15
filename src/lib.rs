@@ -8,6 +8,6 @@ pub mod theme;
 pub mod ui;
 
 pub use app::App;
-pub use load::{LoadError, load_project};
+pub use load::{LoadError, load_demo, load_project};
 pub use model::*;
 pub use reasoning::{EvaluationError, evaluate};

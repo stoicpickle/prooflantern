@@ -2,7 +2,7 @@
 
 use std::{
     io::{self, Read, Write},
-    sync::mpsc,
+    sync::{Mutex, MutexGuard, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -19,24 +19,55 @@ const CURSOR_POSITION_RESPONSE: &[u8] = b"\x1b[1;1R";
 const PRIVATE_CURSOR_POSITION_RESPONSE: &[u8] = b"\x1b[?1;1R";
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(10);
 const OUTPUT_TIMEOUT: Duration = Duration::from_secs(5);
+static PTY_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Debug)]
 enum ExitPath {
-    Normal,
-    Error,
-    Panic,
+    InjectedNormal,
+    InjectedError,
+    InjectedPanic,
+    QuitKey,
+    ControlCKey,
+}
+
+impl ExitPath {
+    const fn input(self) -> Option<&'static [u8]> {
+        match self {
+            Self::QuitKey => Some(b"q"),
+            Self::ControlCKey => Some(b"\x03"),
+            Self::InjectedNormal | Self::InjectedError | Self::InjectedPanic => None,
+        }
+    }
 }
 
 #[test]
-fn normal_quit_restores_the_terminal() {
-    let outcome = run_in_pty(ExitPath::Normal);
+fn injected_normal_exit_restores_the_terminal() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::InjectedNormal);
+    assert!(outcome.status.success(), "{:?}", outcome.status);
+    assert_restored(&outcome.output);
+}
+
+#[test]
+fn q_key_quits_the_real_event_loop_and_restores_the_terminal() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::QuitKey);
+    assert!(outcome.status.success(), "{:?}", outcome.status);
+    assert_restored(&outcome.output);
+}
+
+#[test]
+fn raw_control_c_quits_the_real_event_loop_and_restores_the_terminal() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::ControlCKey);
     assert!(outcome.status.success(), "{:?}", outcome.status);
     assert_restored(&outcome.output);
 }
 
 #[test]
 fn injected_error_restores_before_reporting_failure() {
-    let outcome = run_in_pty(ExitPath::Error);
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::InjectedError);
     assert!(!outcome.status.success(), "{:?}", outcome.status);
     assert_restored(&outcome.output);
     assert_occurs_before(
@@ -48,7 +79,8 @@ fn injected_error_restores_before_reporting_failure() {
 
 #[test]
 fn injected_panic_restores_before_reporting_failure() {
-    let outcome = run_in_pty(ExitPath::Panic);
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::InjectedPanic);
     assert!(!outcome.status.success(), "{:?}", outcome.status);
     assert_restored(&outcome.output);
     assert_occurs_before(
@@ -61,6 +93,12 @@ fn injected_panic_restores_before_reporting_failure() {
 struct PtyOutcome {
     status: ExitStatus,
     output: Vec<u8>,
+}
+
+fn serialize_pty_test() -> MutexGuard<'static, ()> {
+    PTY_TEST_MUTEX
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
@@ -79,9 +117,12 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
     command.env("TERM", "xterm-256color");
     command.env("RUST_BACKTRACE", "0");
     match exit_path {
-        ExitPath::Normal => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "ok"),
-        ExitPath::Error => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "error"),
-        ExitPath::Panic => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "panic"),
+        ExitPath::InjectedNormal => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "ok"),
+        ExitPath::InjectedError => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "error"),
+        ExitPath::InjectedPanic => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "panic"),
+        ExitPath::QuitKey | ExitPath::ControlCKey => {
+            command.env_remove("PROOF_LANTERN_TEST_TERMINAL_EXIT");
+        }
     }
 
     let mut child = pair
@@ -97,8 +138,9 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
         .take_writer()
         .expect("PTY input writer should open");
     let (output_sender, output_receiver) = mpsc::sync_channel(1);
+    let input = exit_path.input();
     thread::spawn(move || {
-        let result = read_terminal_output(&mut reader, &mut writer);
+        let result = read_terminal_output(&mut reader, &mut writer, input);
         let _ = output_sender.send(result);
     });
     drop(pair.slave);
@@ -124,10 +166,15 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
     PtyOutcome { status, output }
 }
 
-fn read_terminal_output(reader: &mut dyn Read, writer: &mut dyn Write) -> io::Result<Vec<u8>> {
+fn read_terminal_output(
+    reader: &mut dyn Read,
+    writer: &mut dyn Write,
+    input: Option<&[u8]>,
+) -> io::Result<Vec<u8>> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut cursor_position_answered = false;
+    let mut input_sent = false;
     loop {
         let bytes_read = reader.read(&mut buffer)?;
         if bytes_read == 0 {
@@ -149,6 +196,13 @@ fn read_terminal_output(reader: &mut dyn Read, writer: &mut dyn Write) -> io::Re
             writer.write_all(response)?;
             writer.flush()?;
             cursor_position_answered = true;
+        }
+        if !input_sent && contains_bytes(&output, ENTER_ALTERNATE_SCREEN) {
+            if let Some(input) = input {
+                writer.write_all(input)?;
+                writer.flush()?;
+            }
+            input_sent = true;
         }
     }
 }

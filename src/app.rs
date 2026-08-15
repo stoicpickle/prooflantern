@@ -175,10 +175,8 @@ mod tests {
     use crate::{evaluate, load_project};
 
     fn app() -> App {
-        let root =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
-        let (spec, observations) =
-            load_project(root.join("project.yml"), root.join("observations.json")).unwrap();
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+        let (spec, observations) = load_project(root).unwrap();
         App::new(evaluate(spec, observations).unwrap())
     }
 

@@ -6,9 +6,8 @@ use proof_lantern::{
     ModelWarning, ObservationSet, evaluate, load_project,
 };
 
-fn fixture_paths() -> (PathBuf, PathBuf) {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
-    (root.join("project.yml"), root.join("observations.json"))
+fn fixture_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box")
 }
 
 fn assert_focus(
@@ -49,9 +48,7 @@ fn assert_focus(
 
 #[test]
 fn recipe_box_derives_truthful_states_and_the_current_focus() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, observations) =
-        load_project(project_path, observations_path).expect("fixture should load");
+    let (spec, observations) = load_project(fixture_root()).expect("fixture should load");
     let evaluated = evaluate(spec, observations).expect("fixture should evaluate");
 
     assert_eq!(
@@ -102,8 +99,7 @@ fn recipe_box_derives_truthful_states_and_the_current_focus() {
 
 #[test]
 fn current_focus_language_tracks_the_selected_evidence_state() {
-    let (project_path, observations_path) = fixture_paths();
-    let (base_spec, base_observations) = load_project(project_path, observations_path).unwrap();
+    let (base_spec, base_observations) = load_project(fixture_root()).unwrap();
 
     let mut built_spec = base_spec.clone();
     built_spec.project.pinned_keystone = Some("save".into());
@@ -194,8 +190,7 @@ fn current_focus_language_tracks_the_selected_evidence_state() {
 
 #[test]
 fn a_project_without_an_accepted_core_journey_is_rejected() {
-    let (project_path, observations_path) = fixture_paths();
-    let (mut spec, observations) = load_project(project_path, observations_path).unwrap();
+    let (mut spec, observations) = load_project(fixture_root()).unwrap();
     spec.project.pinned_keystone = None;
     for capability in &mut spec.capabilities {
         capability.role = CapabilityRole::Optional;
@@ -212,8 +207,7 @@ fn a_project_without_an_accepted_core_journey_is_rejected() {
 
 #[test]
 fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
         capability_id: "find".into(),
         source: MachineSource::StaticScan,
@@ -239,8 +233,7 @@ fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
 
 #[test]
 fn machine_observations_must_reference_inspectable_evidence() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
         capability_id: "find".into(),
         source: MachineSource::StaticScan,
@@ -262,8 +255,7 @@ fn machine_observations_must_reference_inspectable_evidence() {
 
 #[test]
 fn contradictory_current_evidence_stays_visible() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
         capability_id: "reopen".into(),
         source: MachineSource::ImportedTestResult,
@@ -288,8 +280,7 @@ fn contradictory_current_evidence_stays_visible() {
 
 #[test]
 fn unknown_observations_and_parent_paths_are_rejected() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, _) = load_project(project_path, observations_path).unwrap();
+    let (spec, _) = load_project(fixture_root()).unwrap();
     let observations = ObservationSet {
         schema_version: 1,
         observations: vec![MachineObservation {
@@ -315,8 +306,7 @@ fn unknown_observations_and_parent_paths_are_rejected() {
 
 #[test]
 fn a_human_pin_overrides_the_default_severity_order() {
-    let (project_path, observations_path) = fixture_paths();
-    let (mut spec, observations) = load_project(project_path, observations_path).unwrap();
+    let (mut spec, observations) = load_project(fixture_root()).unwrap();
     spec.project.pinned_keystone = Some("save".into());
 
     let evaluated = evaluate(spec, observations).unwrap();
@@ -332,8 +322,7 @@ fn a_human_pin_overrides_the_default_severity_order() {
 
 #[test]
 fn stale_proof_remains_visible_without_counting_as_current_proof() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
     for observation in &mut observations.observations {
         if observation.capability_id == "add" && observation.fact.claim == Claim::VerificationPassed
         {
@@ -355,8 +344,7 @@ fn stale_proof_remains_visible_without_counting_as_current_proof() {
 
 #[test]
 fn blocked_descendants_are_found_through_a_proven_intermediate() {
-    let (project_path, observations_path) = fixture_paths();
-    let (mut spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (mut spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
         capability_id: "find".into(),
         source: MachineSource::ImportedTestResult,
@@ -397,8 +385,7 @@ fn blocked_descendants_are_found_through_a_proven_intermediate() {
 
 #[test]
 fn a_failing_proof_does_not_claim_that_implementation_exists() {
-    let (project_path, observations_path) = fixture_paths();
-    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
         capability_id: "find".into(),
         source: MachineSource::ImportedTestResult,

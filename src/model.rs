@@ -293,6 +293,25 @@ impl EvaluatedProject {
             .filter(|item| item.intent.role.is_core())
     }
 
+    pub fn warning_messages(&self) -> impl Iterator<Item = String> + '_ {
+        self.warnings.iter().map(|warning| match warning {
+            ModelWarning::PinnedGapAlreadyProven(id) => format!(
+                "Pinned focus \"{}\" is already proven; automatic focus selection was used.",
+                self.capability_label(id)
+            ),
+            ModelWarning::StaleEvidenceOnly(id) => format!(
+                "\"{}\" has only stale verification evidence; it does not count as current proof.",
+                self.capability_label(id)
+            ),
+        })
+    }
+
+    fn capability_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.capability(id)
+            .map(|capability| capability.intent.label.as_str())
+            .unwrap_or(id)
+    }
+
     pub fn current_focus(&self) -> CurrentFocus<'_> {
         let Some(selection) = &self.focus_selection else {
             return CurrentFocus::Complete {

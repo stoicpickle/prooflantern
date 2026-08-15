@@ -105,12 +105,17 @@ fn render_journey(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette
     if inner.width == 0 || inner.height == 0 {
         return;
     }
+    let focus_height = if app.project().warnings.is_empty() {
+        5
+    } else {
+        6
+    };
     let rows = Layout::vertical([
         Constraint::Length(3),
         Constraint::Length(5),
         Constraint::Length(3),
         Constraint::Min(1),
-        Constraint::Length(5),
+        Constraint::Length(focus_height),
     ])
     .split(inner);
 
@@ -349,8 +354,12 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
     match app.project().current_focus() {
         CurrentFocus::Complete { heading, summary } => {
             let panel_title = format!(" {heading} ");
+            let mut lines = vec![Line::from(summary)];
+            if let Some(warning) = project_warning_line(app, area, palette) {
+                lines.push(warning);
+            }
             frame.render_widget(
-                Paragraph::new(summary)
+                Paragraph::new(lines)
                     .block(instrument_block(
                         &panel_title,
                         palette.success,
@@ -371,7 +380,7 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
             let accent = focus_style(kind, palette);
             let action_width = width.saturating_sub(action.heading.len() + 2);
             let panel_title = format!(" {} ", kind.heading());
-            let lines = vec![
+            let mut lines = vec![
                 Line::from(vec![
                     Span::styled(
                         format!("{} ", capability.display.glyph()),
@@ -397,6 +406,9 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
                     ),
                 ]),
             ];
+            if let Some(warning) = project_warning_line(app, area, palette) {
+                lines.push(warning);
+            }
             frame.render_widget(
                 Paragraph::new(lines).block(instrument_block(
                     &panel_title,
@@ -407,6 +419,22 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
             );
         }
     }
+}
+
+fn project_warning_line(app: &App, area: Rect, palette: Palette) -> Option<Line<'static>> {
+    let mut warnings = app.project().warning_messages();
+    let first = warnings.next()?;
+    let remaining = warnings.count();
+    let suffix = if remaining == 0 {
+        String::new()
+    } else {
+        format!(" (+{remaining} more)")
+    };
+    let width = usize::from(area.width.saturating_sub(2)).max(1);
+    Some(Line::from(Span::styled(
+        truncate(&format!("⚠ {first}{suffix}"), width),
+        Style::default().fg(palette.warning),
+    )))
 }
 
 fn focus_style(kind: FocusKind, palette: Palette) -> ratatui::style::Color {

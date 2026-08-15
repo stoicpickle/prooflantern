@@ -16,7 +16,7 @@ expression: "render_screen(140, 40, false, \"save\")"
 │                         └──────────────────┘                                                  ││EVIDENCE                                 │
 │                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││STATIC SCAN  Local save code appears to  │
 │                                                                                               ││exist.                                   │
-│                                                                                               ││fixtures/recipe_box/src/storage.rs:1-8   │
+│                                                                                               ││src/storage.rs:1-8                       │
 │OPTIONAL  ? SHARE                                                                              ││                                         │
 │                                                                                               ││PROOF NEEDED                             │
 │                                                                                               ││Save a recipe, close the app, and confirm│

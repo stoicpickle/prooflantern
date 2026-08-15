@@ -53,7 +53,7 @@ capabilities:
     role:
       kind: supporting
       supports: render-journey
-    proof_needed: Exercise normal exit, returned error, and panic in a PTY and confirm the alternate screen and cursor are restored.
+    proof_needed: Exercise real q and Ctrl-C exits, returned error, and panic in a PTY and confirm the alternate screen and cursor are restored.
 
   - id: refresh-evidence
     label: Refresh repository evidence
