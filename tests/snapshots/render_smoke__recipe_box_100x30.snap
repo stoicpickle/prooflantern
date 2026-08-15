@@ -1,0 +1,34 @@
+---
+source: tests/render_smoke.rs
+expression: "render_screen(100, 30, false, \"reopen\")"
+---
+┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
+│PROOF LANTERN // RECIPE BOX   KEYSTONE  REOPEN SAVED RECIPES                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
+│PROMISE                                                                                           │
+│“Save a recipe and find it again tomorrow.”                                                       │
+│                                                                                                  │
+│✓ ADD                     ◐ SAVE                    ┌──────────────────┐      ? FIND              │
+│PROVEN                    BUILT / UNPROVEN          │╳ REOPEN          │      UNKNOWN             │
+│◇ ACCEPTED          ━━━━━━◇ ACCEPTED          ━━╸   │MISSING           │ ┄┄┄  ◇ ACCEPTED          │
+│                                                    │◇ ACCEPTED        │                          │
+│                                                    └──────────────────┘                          │
+│                            └──── ✓ LOCAL DATABASE  SUPPORTING                                    │
+│                                                                                                  │
+│                                                                                                  │
+│OPTIONAL  ? SHARE                                                                                 │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│┌ KEYSTONE GAP ──────────────────────────────────────────────────────────────────────────────────┐│
+││╳ REOPEN SAVED RECIPES                                                                          ││
+││The core journey stops here. Downstream: Find a saved recipe.                                   ││
+││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                       ││
+│└────────────────────────────────────────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
+│←→ NODE   E INSPECT   G GAP   Q EXIT                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,44 @@
+---
+source: tests/render_smoke.rs
+expression: "render_screen(140, 40, false, \"save\")"
+---
+┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│PROOF LANTERN // RECIPE BOX   KEYSTONE  REOPEN SAVED RECIPES                                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ ACCEPTED CORE JOURNEY ────────────────────────────────────────────────────────────────────────┐┌ INSPECTOR ──────────────────────────────┐
+│PROMISE                                                                                        ││◐ SAVE RECIPE LOCALLY                    │
+│“Save a recipe and find it again tomorrow.”                                                    ││BUILT / UNPROVEN   ◇ ACCEPTED            │
+│                                                                                               ││                                         │
+│✓ ADD                    ┌──────────────────┐      ╳ REOPEN                 ? FIND             ││WHY                                      │
+│PROVEN                   │◐ SAVE            │      MISSING                  UNKNOWN            ││Implementation evidence exists, but no   │
+│◇ ACCEPTED         ━━━━━━│BUILT / UNPROVEN  │━━╸   ◇ ACCEPTED          ┄┄┄  ◇ ACCEPTED         ││current passing proof is recorded.       │
+│                         │◇ ACCEPTED        │                                                  ││                                         │
+│                         └──────────────────┘                                                  ││EVIDENCE                                 │
+│                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││STATIC SCAN  Local save code appears to  │
+│                                                                                               ││exist.                                   │
+│                                                                                               ││fixtures/recipe_box/src/storage.rs:1-8   │
+│OPTIONAL  ? SHARE                                                                              ││                                         │
+│                                                                                               ││PROOF NEEDED                             │
+│                                                                                               ││Save a recipe, close the app, and confirm│
+│                                                                                               ││the record persists.                     │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│┌ KEYSTONE GAP ───────────────────────────────────────────────────────────────────────────────┐││                                         │
+││╳ REOPEN SAVED RECIPES                                                                       │││                                         │
+││The core journey stops here. Downstream: Find a saved recipe.                                │││                                         │
+││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                    │││                                         │
+│└─────────────────────────────────────────────────────────────────────────────────────────────┘││                                         │
+└───────────────────────────────────────────────────────────────────────────────────────────────┘└─────────────────────────────────────────┘
+┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│←→ NODE   G GAP   Q EXIT                                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
