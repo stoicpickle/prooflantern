@@ -9,7 +9,7 @@
         "freshness": "current",
         "summary": "Recipe creation code is present.",
         "location": {
-          "path": "fixtures/recipe_box/src/add_recipe.rs",
+          "path": "src/add_recipe.rs",
           "line_start": 1,
           "line_end": 5
         }
@@ -23,7 +23,7 @@
         "freshness": "current",
         "summary": "The recorded add-recipe check passed.",
         "location": {
-          "path": "fixtures/recipe_box/artifacts/test-results.json"
+          "path": "artifacts/test-results.json"
         }
       }
     },
@@ -35,7 +35,7 @@
         "freshness": "current",
         "summary": "Local save code appears to exist.",
         "location": {
-          "path": "fixtures/recipe_box/src/storage.rs",
+          "path": "src/storage.rs",
           "line_start": 1,
           "line_end": 8
         }
@@ -49,7 +49,7 @@
         "freshness": "current",
         "summary": "A local database adapter is present.",
         "location": {
-          "path": "fixtures/recipe_box/src/storage.rs",
+          "path": "src/storage.rs",
           "line_start": 1,
           "line_end": 8
         }
@@ -63,7 +63,7 @@
         "freshness": "current",
         "summary": "The recorded database round-trip check passed.",
         "location": {
-          "path": "fixtures/recipe_box/artifacts/test-results.json"
+          "path": "artifacts/test-results.json"
         }
       }
     }

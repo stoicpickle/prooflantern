@@ -28,9 +28,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"));
 
-    let root = project_root.join(".proof-lantern");
-    let (spec, observations) =
-        load_project(root.join("project.yml"), root.join("observations.json"))?;
+    let (spec, observations) = load_project(project_root)?;
     let mut app = App::new(evaluate(spec, observations)?);
     let _ = app.select_id(&selected);
     if inspector {

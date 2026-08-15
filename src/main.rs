@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process,
     sync::{
         Arc,
@@ -11,9 +11,9 @@ use std::{
 
 use clap::Parser;
 use proof_lantern::{
-    App, CurrentFocus, EvaluatedProject,
+    App, CurrentFocus, EvaluatedProject, EvidenceSource, Freshness,
     cli::{Cli, Invocation},
-    evaluate, load_project,
+    evaluate, load_demo, load_project,
 };
 
 #[cfg(feature = "terminal-test-hooks")]
@@ -49,7 +49,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     let project = match invocation {
-        Invocation::Demo => load_root(demo_root())?,
+        Invocation::Demo => {
+            let (spec, observations) = load_demo()?;
+            evaluate(spec, observations)?
+        }
         Invocation::Project(path) => load_root(path)?,
         Invocation::Next(_) | Invocation::Explain { .. } => unreachable!(),
     };
@@ -83,14 +86,8 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 fn load_root(root: impl AsRef<Path>) -> Result<EvaluatedProject, Box<dyn Error>> {
-    let config = root.as_ref().join(".proof-lantern");
-    let (spec, observations) =
-        load_project(config.join("project.yml"), config.join("observations.json"))?;
+    let (spec, observations) = load_project(root)?;
     Ok(evaluate(spec, observations)?)
-}
-
-fn demo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box")
 }
 
 fn print_next(project: &EvaluatedProject) -> io::Result<()> {
@@ -98,7 +95,7 @@ fn print_next(project: &EvaluatedProject) -> io::Result<()> {
     match project.current_focus() {
         CurrentFocus::Complete { heading, summary } => {
             writeln!(output, "{heading}")?;
-            writeln!(output, "{summary}")
+            writeln!(output, "{summary}")?;
         }
         CurrentFocus::Capability {
             capability,
@@ -116,9 +113,10 @@ fn print_next(project: &EvaluatedProject) -> io::Result<()> {
                 capability.display.label()
             )?;
             writeln!(output, "{summary}")?;
-            writeln!(output, "{}: {}", action.heading, action.instruction)
+            writeln!(output, "{}: {}", action.heading, action.instruction)?;
         }
     }
+    print_warnings(&mut output, project)
 }
 
 fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
@@ -142,15 +140,42 @@ fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
         writeln!(output, "  No current evidence recorded.")?;
     } else {
         for reason in &capability.reasons {
-            let freshness = if reason.fact.freshness == proof_lantern::Freshness::Stale {
-                "[STALE] "
-            } else {
-                ""
+            let source = match reason.source {
+                EvidenceSource::Human => "HUMAN",
+                EvidenceSource::StaticScan => "STATIC SCAN",
+                EvidenceSource::ImportedTestResult => "IMPORTED TEST RESULT",
             };
-            writeln!(output, "  - {freshness}{}", reason.fact.summary)?;
+            let freshness = match reason.fact.freshness {
+                Freshness::Current => "CURRENT",
+                Freshness::Stale => "STALE",
+            };
+            let location = match &reason.fact.location {
+                Some(location) => match (location.line_start, location.line_end) {
+                    (Some(start), Some(end)) => format!("{}:{start}-{end}", location.path),
+                    _ => location.path.clone(),
+                },
+                None => "not recorded".to_owned(),
+            };
+            writeln!(output, "  - Source: {source}")?;
+            writeln!(output, "    Freshness: {freshness}")?;
+            writeln!(output, "    Summary: {}", reason.fact.summary)?;
+            writeln!(output, "    Location: {location}")?;
         }
     }
-    writeln!(output, "Proof needed: {}", capability.intent.proof_needed)
+    writeln!(output, "Proof needed: {}", capability.intent.proof_needed)?;
+    print_warnings(&mut output, project)
+}
+
+fn print_warnings(output: &mut impl Write, project: &EvaluatedProject) -> io::Result<()> {
+    if project.warnings.is_empty() {
+        return Ok(());
+    }
+
+    writeln!(output, "Warnings:")?;
+    for warning in project.warning_messages() {
+        writeln!(output, "  - {warning}")?;
+    }
+    Ok(())
 }
 
 #[cfg(feature = "terminal-test-hooks")]

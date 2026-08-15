@@ -56,10 +56,16 @@ Proof Lantern deliberately separates authority:
   scans may establish only that implementation appears present. Imported test
   results may record passing or failing verification. In this pre-release v1
   schema, every machine observation must declare a syntactically valid,
-  repo-relative evidence location. The evaluator does not yet verify that the
-  referenced file exists.
+  project-relative evidence location.
 - Display states and the current focus are derived. They are never stored as
   editable progress labels.
+
+When a project is loaded from disk, every current evidence location is resolved
+against that project root. Missing files, directory targets, symlinks that
+escape the root, unreadable line citations, and line ranges beyond the end of a
+file are rejected before they can support `PROVEN`. Stale historical evidence
+may keep a location whose old source no longer exists. Proof Lantern validates
+inspectability, not whether the cited text semantically proves its summary.
 
 Missing machine evidence produces `UNKNOWN`, not `MISSING`. Conflicting current
 evidence remains visibly `CONFLICTING` rather than being guessed away.
@@ -77,11 +83,16 @@ fully proven core journey is reported positively as `CORE JOURNEY PROVEN`.
 - The inspector shows `WHY`, `EVIDENCE`, and `PROOF NEEDED`.
 - Current-focus selection is deterministic and excludes supporting and optional
   capabilities.
-- Normal exit, returned errors, and panics restore the terminal in PTY tests.
+- Real `q` and Ctrl-C exits, returned errors, and panics restore the terminal in
+  PTY tests.
+- The built-in demo is embedded in the executable rather than loaded from its
+  build directory at runtime.
 
 It does not yet generate journeys, refresh repository evidence, execute project
-code, or edit project intent. The Recipe Box evidence is synthetic but points
-to inspectable fixture source and recorded artifacts.
+code, or edit project intent. The Recipe Box evidence is synthetic. In a source
+checkout its paths point to fixture source and recorded artifacts; a standalone
+binary labels it `Synthetic Demo` because those paths are bundled provenance,
+not navigable files in the user's project.
 
 For the first private dogfood, prepare maps with roughly three to five accepted
 core capabilities in one linear journey. That is a facilitation constraint, not
@@ -110,3 +121,9 @@ cargo run --example render_proof -- proof/proof-lantern-self-100x30.svg 100 30 r
 The original product kickoff remains in
 `BUILD_MAP_CODEX_KICKOFF.md`; “build map” is now the generic visualization,
 while Proof Lantern is the product name.
+
+## License
+
+Proof Lantern is available under either the
+[MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), at your
+option.

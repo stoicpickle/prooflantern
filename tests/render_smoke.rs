@@ -86,6 +86,14 @@ fn compact_focus_panel_distinguishes_unproven_from_unknown() {
 }
 
 #[test]
+fn project_warnings_are_visible_without_replacing_the_current_focus() {
+    let screen = render_app_screen(100, 30, false, "reopen", pinned_recipe_box_app("add"));
+    assert!(screen.contains("JOURNEY BREAK"), "{screen}");
+    assert!(screen.contains("Pinned focus"), "{screen}");
+    assert!(screen.contains("already proven"), "{screen}");
+}
+
+#[test]
 fn compact_inspector_and_wide_layout_expose_only_the_needed_sections() {
     let compact = render_screen(100, 30, true, "reopen");
     for label in ["WHY", "EVIDENCE", "PROOF NEEDED"] {
@@ -201,16 +209,13 @@ fn recipe_box_app() -> App {
 }
 
 fn pinned_recipe_box_app(capability_id: &str) -> App {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
-    let (mut spec, observations) =
-        load_project(root.join("project.yml"), root.join("observations.json")).unwrap();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+    let (mut spec, observations) = load_project(root).unwrap();
     spec.project.pinned_keystone = Some(capability_id.into());
     App::new(evaluate(spec, observations).unwrap())
 }
 
 fn project_app(root: PathBuf) -> App {
-    let root = root.join(".proof-lantern");
-    let (spec, observations) =
-        load_project(root.join("project.yml"), root.join("observations.json")).unwrap();
+    let (spec, observations) = load_project(root).unwrap();
     App::new(evaluate(spec, observations).unwrap())
 }
