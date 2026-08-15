@@ -1,7 +1,7 @@
 schema_version: 1
 project:
   name: Proof Lantern
-  promise: Show a project's accepted core journey, explain the evidence behind each state, and name its keystone gap.
+  promise: Show a project's accepted core journey, explain the evidence behind each state, and name any keystone gap.
 capabilities:
   - id: load-project
     label: Load local project evidence
@@ -45,7 +45,7 @@ capabilities:
       kind: core
       order: 5
     depends_on: [inspect-evidence]
-    proof_needed: Add a subprocess integration test that runs proof-lantern next against this repository and asserts the selected gap, impact, and proof requirement.
+    proof_needed: Run the subprocess integration test against Recipe Box and assert success plus the selected gap, downstream impact, and proof requirement.
 
   - id: terminal-safety
     label: Restore terminal state safely

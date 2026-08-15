@@ -25,7 +25,7 @@
         "location": {
           "path": "tests/render_smoke.rs",
           "line_start": 112,
-          "line_end": 124
+          "line_end": 125
         }
       }
     },
@@ -124,6 +124,20 @@
           "path": "src/main.rs",
           "line_start": 96,
           "line_end": 113
+        }
+      }
+    },
+    {
+      "capability_id": "report-keystone",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, the subprocess contract passed for exit status, gap, downstream impact, and proof-needed output.",
+        "location": {
+          "path": "tests/next_command.rs",
+          "line_start": 3,
+          "line_end": 28
         }
       }
     },

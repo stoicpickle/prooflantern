@@ -109,18 +109,19 @@ fn undersized_terminal_gets_an_explicit_bail_screen() {
 }
 
 #[test]
-fn repository_self_map_renders_its_real_keystone() {
+fn repository_self_map_renders_a_complete_core_journey() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let screen = render_app_screen(100, 30, false, "report-keystone", project_app(root));
     assert!(
         screen.contains("PROOF LANTERN // PROOF LANTERN"),
         "{screen}"
     );
-    assert!(screen.contains("◐ NEXT"), "{screen}");
-    assert!(screen.contains("BUILT /"), "{screen}");
-    assert!(screen.contains("UNPROVEN"), "{screen}");
-    assert!(screen.contains("KEYSTONE GAP"), "{screen}");
-    assert!(screen.contains("subprocess integration test"), "{screen}");
+    assert!(screen.contains("✓ NEXT"), "{screen}");
+    assert!(!screen.contains("BUILT / UNPROVEN"), "{screen}");
+    assert!(
+        screen.contains("No unresolved core capability."),
+        "{screen}"
+    );
 }
 
 fn render_screen(width: u16, height: u16, inspector: bool, selected: &str) -> String {

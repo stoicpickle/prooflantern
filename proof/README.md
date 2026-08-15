@@ -7,7 +7,7 @@ These PNGs are visual-review artifacts generated from Ratatui's deterministic
 - `recipe-box-reopen-inspector-100x30.png`: compact evidence drawer;
 - `recipe-box-save-140x40.png`: wide journey and inspector with SAVE selected.
 - `proof-lantern-self-100x30.png`: Proof Lantern's real five-node self-map with
-  its current keystone selected.
+  its completed core journey and NEXT selected.
 
 The SVG sources are reproducible and ignored by Git. On macOS, convert a render
 without changing its geometry with:

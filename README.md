@@ -3,7 +3,8 @@
 Proof Lantern is a local-first terminal prototype that shows what a project's
 core user journey has accepted, built, proven, left missing, or not yet
 understood. It then names one deterministic keystone gap and explains the
-evidence behind that choice.
+evidence behind that choice whenever the accepted core journey remains
+unresolved.
 
 ![Proof Lantern mapping itself](proof/proof-lantern-self-100x30.png)
 
