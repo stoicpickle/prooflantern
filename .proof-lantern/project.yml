@@ -1,7 +1,7 @@
 schema_version: 1
 project:
   name: Proof Lantern
-  promise: Show a project's accepted core journey, explain the evidence behind each state, and name any keystone gap.
+  promise: Show a project's accepted core journey, explain the evidence behind each state, and name its honest current focus.
 capabilities:
   - id: load-project
     label: Load local project evidence
@@ -39,13 +39,13 @@ capabilities:
     proof_needed: Open compact and wide inspectors and confirm Why, Evidence, and Proof needed are visible for the selected capability.
 
   - id: report-keystone
-    label: Print the deterministic keystone gap
+    label: Print the deterministic current focus
     map_label: Next
     role:
       kind: core
       order: 5
     depends_on: [inspect-evidence]
-    proof_needed: Run the subprocess integration test against Recipe Box and assert success plus the selected gap, downstream impact, and proof requirement.
+    proof_needed: Run subprocess integration tests and assert the state-sensitive Recipe Box focus plus the positive completed-project result.
 
   - id: terminal-safety
     label: Restore terminal state safely

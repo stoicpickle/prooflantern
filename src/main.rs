@@ -11,7 +11,7 @@ use std::{
 
 use clap::Parser;
 use proof_lantern::{
-    App, EvaluatedProject,
+    App, CurrentFocus, EvaluatedProject,
     cli::{Cli, Invocation},
     evaluate, load_project,
 };
@@ -95,22 +95,30 @@ fn demo_root() -> PathBuf {
 
 fn print_next(project: &EvaluatedProject) -> io::Result<()> {
     let mut output = io::stdout().lock();
-    let Some(gap) = &project.keystone else {
-        return writeln!(output, "No unresolved core capability.");
-    };
-    let capability = project
-        .capability(&gap.capability_id)
-        .expect("evaluated gap must reference a capability");
-    writeln!(output, "KEYSTONE GAP")?;
-    writeln!(
-        output,
-        "{} {} — {}",
-        capability.display.glyph(),
-        capability.intent.label,
-        capability.display.label()
-    )?;
-    writeln!(output, "{}", project.gap_impact(gap))?;
-    writeln!(output, "Proof needed: {}", capability.intent.proof_needed)
+    match project.current_focus() {
+        CurrentFocus::Complete { heading, summary } => {
+            writeln!(output, "{heading}")?;
+            writeln!(output, "{summary}")
+        }
+        CurrentFocus::Capability {
+            capability,
+            kind,
+            summary,
+            action,
+            ..
+        } => {
+            writeln!(output, "{}", kind.heading())?;
+            writeln!(
+                output,
+                "{} {} — {}",
+                capability.display.glyph(),
+                capability.intent.label,
+                capability.display.label()
+            )?;
+            writeln!(output, "{summary}")?;
+            writeln!(output, "{}: {}", action.heading, action.instruction)
+        }
+    }
 }
 
 fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {

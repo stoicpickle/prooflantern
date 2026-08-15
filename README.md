@@ -2,9 +2,8 @@
 
 Proof Lantern is a local-first terminal prototype that shows what a project's
 core user journey has accepted, built, proven, left missing, or not yet
-understood. It then names one deterministic keystone gap and explains the
-evidence behind that choice whenever the accepted core journey remains
-unresolved.
+understood. It then names one deterministic current focus and gives an honest,
+state-sensitive explanation of what to check next.
 
 ![Proof Lantern mapping itself](proof/proof-lantern-self-100x30.png)
 
@@ -27,7 +26,7 @@ Inside the TUI:
 
 - `←` / `→` or `h` / `l`: select a capability
 - `e` or `Enter`: open or close the compact inspector
-- `g`: return to the keystone gap
+- `g`: return to the current focus
 - `q` or `Ctrl-C`: exit and restore the terminal
 
 Plain terminal commands expose the same evaluated model:
@@ -55,12 +54,18 @@ Proof Lantern deliberately separates authority:
   evidence.
 - `.proof-lantern/observations.json` is replaceable machine evidence. Static
   scans may establish only that implementation appears present. Imported test
-  results may record passing or failing verification.
-- Display states and the keystone gap are derived. They are never stored as
+  results may record passing or failing verification. In this pre-release v1
+  schema, every machine observation must declare a syntactically valid,
+  repo-relative evidence location. The evaluator does not yet verify that the
+  referenced file exists.
+- Display states and the current focus are derived. They are never stored as
   editable progress labels.
 
 Missing machine evidence produces `UNKNOWN`, not `MISSING`. Conflicting current
 evidence remains visibly `CONFLICTING` rather than being guessed away.
+Only explicit current absence produces a `JOURNEY BREAK`; unproven, unknown,
+failed, and conflicting states receive their own narrower focus language. A
+fully proven core journey is reported positively as `CORE JOURNEY PROVEN`.
 
 ## What this prototype proves
 
@@ -70,13 +75,19 @@ evidence remains visibly `CONFLICTING` rather than being guessed away.
   source and test evidence.
 - A missing core capability physically interrupts the path.
 - The inspector shows `WHY`, `EVIDENCE`, and `PROOF NEEDED`.
-- Keystone selection is deterministic and excludes supporting and optional
+- Current-focus selection is deterministic and excludes supporting and optional
   capabilities.
 - Normal exit, returned errors, and panics restore the terminal in PTY tests.
 
 It does not yet generate journeys, refresh repository evidence, execute project
 code, or edit project intent. The Recipe Box evidence is synthetic but points
 to inspectable fixture source and recorded artifacts.
+
+For the first private dogfood, prepare maps with roughly three to five accepted
+core capabilities in one linear journey. That is a facilitation constraint, not
+a schema restriction. Larger or dependency-shaped maps may load, but this
+prototype still renders core capabilities as one ordered line; branching journey
+visualization remains future work.
 
 ## Development
 

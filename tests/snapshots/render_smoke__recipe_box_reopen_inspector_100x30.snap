@@ -3,7 +3,7 @@ source: tests/render_smoke.rs
 expression: "render_screen(100, 30, true, \"reopen\")"
 ---
 ┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
-│PROOF LANTERN // RECIPE BOX   KEYSTONE  REOPEN SAVED RECIPES                                      │
+│PROOF LANTERN // RECIPE BOX   FOCUS  REOPEN SAVED RECIPES                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
 │PROMISE                                                                                           │
@@ -30,5 +30,5 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │Close app, reopen it, and confirm the saved recipe appears.                                       │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
-│←→ NODE   E CLOSE   G GAP   Q EXIT                                                                │
+│←→ NODE   E CLOSE   G FOCUS   Q EXIT                                                              │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

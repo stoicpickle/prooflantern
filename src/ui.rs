@@ -8,7 +8,9 @@ use ratatui::{
 
 use crate::{
     App,
-    model::{CapabilityAssessment, CapabilityRole, DisplayState, EvidenceSource},
+    model::{
+        CapabilityAssessment, CapabilityRole, CurrentFocus, DisplayState, EvidenceSource, FocusKind,
+    },
     text::{middle_truncate, truncate},
     theme::Palette,
 };
@@ -61,11 +63,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
-    let gap = app
-        .project()
-        .keystone
-        .as_ref()
-        .and_then(|item| app.project().capability(&item.capability_id));
+    let focus = match app.project().current_focus() {
+        CurrentFocus::Capability { capability, .. } => Some(capability),
+        CurrentFocus::Complete { .. } => None,
+    };
     let mut spans = vec![
         Span::styled("PROOF LANTERN", Style::default().fg(palette.hot).bold()),
         Span::styled(" // ", Style::default().fg(palette.grid)),
@@ -74,11 +75,11 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette)
             Style::default().fg(palette.text).bold(),
         ),
     ];
-    if let Some(gap) = gap {
+    if let Some(focus) = focus {
         spans.extend([
-            Span::styled("   KEYSTONE  ", Style::default().fg(palette.muted)),
+            Span::styled("   FOCUS  ", Style::default().fg(palette.muted)),
             Span::styled(
-                gap.intent.label.to_uppercase(),
+                focus.intent.label.to_uppercase(),
                 Style::default().fg(palette.warning).bold(),
             ),
         ]);
@@ -132,7 +133,7 @@ fn render_journey(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette
     let node_areas = render_core_path(frame, rows[1], &core, app, palette);
     render_supporting(frame, rows[2], &core, &node_areas, app, palette);
     render_optional(frame, rows[3], app, palette);
-    render_keystone(frame, rows[4], app, palette);
+    render_focus(frame, rows[4], app, palette);
 }
 
 fn render_core_path(
@@ -344,59 +345,78 @@ fn render_optional(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palett
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn render_keystone(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
-    let Some(gap) = &app.project().keystone else {
-        frame.render_widget(
-            Paragraph::new("No unresolved core capability.")
-                .block(instrument_block(
-                    " KEYSTONE GAP ",
-                    palette.success,
+fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
+    match app.project().current_focus() {
+        CurrentFocus::Complete { heading, summary } => {
+            let panel_title = format!(" {heading} ");
+            frame.render_widget(
+                Paragraph::new(summary)
+                    .block(instrument_block(
+                        &panel_title,
+                        palette.success,
+                        palette.background,
+                    ))
+                    .style(Style::default().fg(palette.success)),
+                area,
+            );
+        }
+        CurrentFocus::Capability {
+            capability,
+            kind,
+            summary,
+            action,
+            ..
+        } => {
+            let width = usize::from(area.width.saturating_sub(2));
+            let accent = focus_style(kind, palette);
+            let action_width = width.saturating_sub(action.heading.len() + 2);
+            let panel_title = format!(" {} ", kind.heading());
+            let lines = vec![
+                Line::from(vec![
+                    Span::styled(
+                        format!("{} ", capability.display.glyph()),
+                        state_style(capability.display, palette).bold(),
+                    ),
+                    Span::styled(
+                        capability.intent.label.to_uppercase(),
+                        Style::default().fg(palette.text).bold(),
+                    ),
+                ]),
+                Line::from(Span::styled(
+                    truncate(&summary, width.max(1)),
+                    Style::default().fg(accent),
+                )),
+                Line::from(vec![
+                    Span::styled(
+                        format!("{}  ", action.heading),
+                        Style::default().fg(palette.primary).bold(),
+                    ),
+                    Span::styled(
+                        truncate(&action.instruction, action_width),
+                        Style::default().fg(palette.text),
+                    ),
+                ]),
+            ];
+            frame.render_widget(
+                Paragraph::new(lines).block(instrument_block(
+                    &panel_title,
+                    accent,
                     palette.background,
-                ))
-                .style(Style::default().fg(palette.success)),
-            area,
-        );
-        return;
-    };
-    let Some(capability) = app.project().capability(&gap.capability_id) else {
-        return;
-    };
-    let impact = app.project().gap_impact(gap);
-    let width = usize::from(area.width.saturating_sub(2));
-    let lines = vec![
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", capability.display.glyph()),
-                state_style(capability.display, palette).bold(),
-            ),
-            Span::styled(
-                capability.intent.label.to_uppercase(),
-                Style::default().fg(palette.text).bold(),
-            ),
-        ]),
-        Line::from(Span::styled(
-            truncate(&impact, width.max(1)),
-            Style::default().fg(palette.warning),
-        )),
-        Line::from(vec![
-            Span::styled(
-                "PROOF NEEDED  ",
-                Style::default().fg(palette.primary).bold(),
-            ),
-            Span::styled(
-                truncate(&capability.intent.proof_needed, width.saturating_sub(14)),
-                Style::default().fg(palette.text),
-            ),
-        ]),
-    ];
-    frame.render_widget(
-        Paragraph::new(lines).block(instrument_block(
-            " KEYSTONE GAP ",
-            palette.warning,
-            palette.background,
-        )),
-        area,
-    );
+                )),
+                area,
+            );
+        }
+    }
+}
+
+fn focus_style(kind: FocusKind, palette: Palette) -> ratatui::style::Color {
+    match kind {
+        FocusKind::JourneyBreak | FocusKind::FailedCheck | FocusKind::ResolveConflict => {
+            palette.warning
+        }
+        FocusKind::NeedsProof => palette.primary,
+        FocusKind::NeedsEvidence => palette.muted,
+    }
 }
 
 fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
@@ -529,7 +549,7 @@ fn render_footer(
         spans.extend([key(inspect, palette), Span::raw("   ")]);
     }
     spans.extend([
-        key("G GAP", palette),
+        key("G FOCUS", palette),
         Span::raw("   "),
         key("Q EXIT", palette),
     ]);
@@ -641,11 +661,11 @@ fn key(label: &str, palette: Palette) -> Span<'_> {
     Span::styled(label, Style::default().fg(palette.text).bold())
 }
 
-fn instrument_block(
-    title: &'static str,
+fn instrument_block<'a>(
+    title: &'a str,
     border: ratatui::style::Color,
     panel: ratatui::style::Color,
-) -> Block<'static> {
+) -> Block<'a> {
     Block::default()
         .title(title)
         .borders(Borders::ALL)

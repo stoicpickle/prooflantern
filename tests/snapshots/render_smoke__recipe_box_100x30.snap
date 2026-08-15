@@ -3,7 +3,7 @@ source: tests/render_smoke.rs
 expression: "render_screen(100, 30, false, \"reopen\")"
 ---
 ┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
-│PROOF LANTERN // RECIPE BOX   KEYSTONE  REOPEN SAVED RECIPES                                      │
+│PROOF LANTERN // RECIPE BOX   FOCUS  REOPEN SAVED RECIPES                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
 │PROMISE                                                                                           │
@@ -23,12 +23,12 @@ expression: "render_screen(100, 30, false, \"reopen\")"
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
-│┌ KEYSTONE GAP ──────────────────────────────────────────────────────────────────────────────────┐│
+│┌ JOURNEY BREAK ─────────────────────────────────────────────────────────────────────────────────┐│
 ││╳ REOPEN SAVED RECIPES                                                                          ││
-││The core journey stops here. Downstream: Find a saved recipe.                                   ││
+││Required implementation is recorded absent. Downstream unresolved: Find a saved recipe.         ││
 ││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                       ││
 │└────────────────────────────────────────────────────────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
-│←→ NODE   E INSPECT   G GAP   Q EXIT                                                              │
+│←→ NODE   E INSPECT   G FOCUS   Q EXIT                                                            │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

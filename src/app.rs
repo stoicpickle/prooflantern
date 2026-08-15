@@ -10,7 +10,10 @@ use std::{
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::DefaultTerminal;
 
-use crate::{model::EvaluatedProject, ui};
+use crate::{
+    model::{CurrentFocus, EvaluatedProject},
+    ui,
+};
 
 const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -25,14 +28,16 @@ pub struct App {
 
 impl App {
     pub fn new(project: EvaluatedProject) -> Self {
-        let selected = project
-            .keystone
-            .as_ref()
-            .and_then(|gap| {
+        let focused_id = match project.current_focus() {
+            CurrentFocus::Capability { capability, .. } => Some(capability.intent.id.clone()),
+            CurrentFocus::Complete { .. } => None,
+        };
+        let selected = focused_id
+            .and_then(|id| {
                 project
                     .capabilities
                     .iter()
-                    .position(|item| item.intent.id == gap.capability_id)
+                    .position(|item| item.intent.id == id)
             })
             .unwrap_or(0);
         Self {
@@ -84,15 +89,16 @@ impl App {
         true
     }
 
-    pub fn select_gap(&mut self) -> bool {
-        let Some(gap) = &self.project.keystone else {
-            return false;
+    pub fn select_focus(&mut self) -> bool {
+        let focused_id = match self.project.current_focus() {
+            CurrentFocus::Capability { capability, .. } => capability.intent.id.clone(),
+            CurrentFocus::Complete { .. } => return false,
         };
         let Some(index) = self
             .project
             .capabilities
             .iter()
-            .position(|item| item.intent.id == gap.capability_id)
+            .position(|item| item.intent.id == focused_id)
         else {
             return false;
         };
@@ -153,7 +159,7 @@ impl App {
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('k') => self.previous_node(),
             KeyCode::Enter | KeyCode::Char('e') => self.toggle_inspector(),
             KeyCode::Esc if self.inspector_open => self.toggle_inspector(),
-            KeyCode::Char('g') => self.select_gap(),
+            KeyCode::Char('g') => self.select_focus(),
             _ => false,
         }
     }
@@ -186,7 +192,7 @@ mod tests {
     }
 
     #[test]
-    fn navigation_inspector_and_gap_selection_are_deterministic() {
+    fn navigation_inspector_and_focus_selection_are_deterministic() {
         let mut app = app();
         assert_eq!(app.selected().unwrap().intent.id, "reopen");
         assert!(app.handle_event(press(KeyCode::Right)));

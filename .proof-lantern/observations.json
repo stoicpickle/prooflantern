@@ -35,7 +35,7 @@
       "fact": {
         "claim": "implementation_present",
         "freshness": "current",
-        "summary": "Pure evaluation derives implementation, verification, display state, warnings, and the keystone from intent and observations.",
+        "summary": "Pure evaluation derives implementation, verification, display state, warnings, and deterministic focus selection from intent and observations.",
         "location": {
           "path": "src/reasoning.rs",
           "line_start": 23,
@@ -49,11 +49,11 @@
       "fact": {
         "claim": "verification_passed",
         "freshness": "current",
-        "summary": "On 2026-08-15, all eight model contract tests passed, including authority, conflict, stale-proof, and keystone cases.",
+        "summary": "On 2026-08-15, all eleven model contract tests passed, including state-sensitive focus language, inspectable machine-evidence enforcement, and rejection of an empty core journey.",
         "location": {
           "path": "tests/model_contract.rs",
           "line_start": 14,
-          "line_end": 227
+          "line_end": 442
         }
       }
     },
@@ -63,11 +63,11 @@
       "fact": {
         "claim": "implementation_present",
         "freshness": "current",
-        "summary": "The TUI renders the project promise, accepted core journey, supporting capabilities, and keystone panel.",
+        "summary": "The TUI renders the project promise, accepted core journey, supporting capabilities, and shared state-sensitive focus panel.",
         "location": {
           "path": "src/ui.rs",
           "line_start": 40,
-          "line_end": 135
+          "line_end": 136
         }
       }
     },
@@ -81,7 +81,7 @@
         "location": {
           "path": "tests/render_smoke.rs",
           "line_start": 6,
-          "line_end": 109
+          "line_end": 166
         }
       }
     },
@@ -94,8 +94,8 @@
         "summary": "The inspector renders a separate accepted badge, Why, evidence summaries and locations, and Proof needed.",
         "location": {
           "path": "src/ui.rs",
-          "line_start": 402,
-          "line_end": 512
+          "line_start": 422,
+          "line_end": 533
         }
       }
     },
@@ -108,8 +108,8 @@
         "summary": "On 2026-08-15, compact and wide inspector assertions passed with Why, Evidence, Proof needed, and the accepted badge visible.",
         "location": {
           "path": "tests/render_smoke.rs",
-          "line_start": 49,
-          "line_end": 85
+          "line_start": 89,
+          "line_end": 124
         }
       }
     },
@@ -119,11 +119,11 @@
       "fact": {
         "claim": "implementation_present",
         "freshness": "current",
-        "summary": "The next command prints the selected gap, its impact, and the proof still needed.",
+        "summary": "One current_focus interface owns the selected capability, state-specific heading, responsible explanation, next check, and positive completion result shared by CLI and TUI.",
         "location": {
-          "path": "src/main.rs",
-          "line_start": 96,
-          "line_end": 113
+          "path": "src/model.rs",
+          "line_start": 222,
+          "line_end": 374
         }
       }
     },
@@ -133,11 +133,11 @@
       "fact": {
         "claim": "verification_passed",
         "freshness": "current",
-        "summary": "On 2026-08-15, the subprocess contract passed for exit status, gap, downstream impact, and proof-needed output.",
+        "summary": "On 2026-08-15, subprocess contracts passed for the Recipe Box journey-break focus and the repository's positive completed-journey result.",
         "location": {
           "path": "tests/next_command.rs",
           "line_start": 3,
-          "line_end": 28
+          "line_end": 54
         }
       }
     },

@@ -219,12 +219,53 @@ impl CapabilityAssessment {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FocusKind {
+    JourneyBreak,
+    FailedCheck,
+    NeedsProof,
+    NeedsEvidence,
+    ResolveConflict,
+}
+
+impl FocusKind {
+    pub const fn heading(self) -> &'static str {
+        match self {
+            Self::JourneyBreak => "JOURNEY BREAK",
+            Self::FailedCheck => "FAILED CHECK",
+            Self::NeedsProof => "NEEDS PROOF",
+            Self::NeedsEvidence => "NEEDS EVIDENCE",
+            Self::ResolveConflict => "RESOLVE CONFLICT",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct KeystoneGap {
-    pub capability_id: String,
-    pub pinned: bool,
-    pub state: DisplayState,
-    pub blocked_core_ids: Vec<String>,
+pub struct FocusAction {
+    pub heading: &'static str,
+    pub instruction: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CurrentFocus<'a> {
+    Complete {
+        heading: &'static str,
+        summary: &'static str,
+    },
+    Capability {
+        capability: &'a CapabilityAssessment,
+        pinned: bool,
+        kind: FocusKind,
+        summary: String,
+        action: FocusAction,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct FocusSelection {
+    pub(crate) capability_id: String,
+    pub(crate) pinned: bool,
+    pub(crate) downstream_core_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -237,7 +278,7 @@ pub enum ModelWarning {
 pub struct EvaluatedProject {
     pub project: ProjectIntent,
     pub capabilities: Vec<CapabilityAssessment>,
-    pub keystone: Option<KeystoneGap>,
+    pub(crate) focus_selection: Option<FocusSelection>,
     pub warnings: Vec<ModelWarning>,
 }
 
@@ -252,17 +293,83 @@ impl EvaluatedProject {
             .filter(|item| item.intent.role.is_core())
     }
 
-    pub fn gap_impact(&self, gap: &KeystoneGap) -> String {
-        if gap.blocked_core_ids.is_empty() {
-            return "This unresolved core capability directly blocks the project promise.".into();
+    pub fn current_focus(&self) -> CurrentFocus<'_> {
+        let Some(selection) = &self.focus_selection else {
+            return CurrentFocus::Complete {
+                heading: "CORE JOURNEY PROVEN",
+                summary: "All accepted core capabilities have current recorded proof.",
+            };
+        };
+        let capability = self
+            .capability(&selection.capability_id)
+            .expect("evaluated focus must reference a capability");
+        let (kind, mut summary, action_heading, action_instruction) = match capability.display {
+            DisplayState::Missing => (
+                FocusKind::JourneyBreak,
+                "Required implementation is recorded absent.".to_owned(),
+                "PROOF NEEDED",
+                capability.intent.proof_needed.clone(),
+            ),
+            DisplayState::ProofFailed => (
+                FocusKind::FailedCheck,
+                "A current recorded check failed; this does not establish that the implementation is absent."
+                    .to_owned(),
+                "NEXT CHECK",
+                format!(
+                    "Inspect the failure; replace or mark stale the failed record before rerunning: {}",
+                    capability.intent.proof_needed
+                ),
+            ),
+            DisplayState::BuiltUnproven => (
+                FocusKind::NeedsProof,
+                "Implementation evidence exists, but no current passing proof is recorded."
+                    .to_owned(),
+                "PROOF NEEDED",
+                capability.intent.proof_needed.clone(),
+            ),
+            DisplayState::Unknown => (
+                FocusKind::NeedsEvidence,
+                "No current technical evidence establishes whether this capability exists or works."
+                    .to_owned(),
+                "NEXT CHECK",
+                format!(
+                    "Inspect the implementation or record evidence, then: {}",
+                    capability.intent.proof_needed
+                ),
+            ),
+            DisplayState::Conflicting => (
+                FocusKind::ResolveConflict,
+                "Current evidence conflicts, so Proof Lantern cannot establish this capability's state."
+                    .to_owned(),
+                "NEXT CHECK",
+                format!(
+                    "Reconcile or mark stale the conflicting records, then: {}",
+                    capability.intent.proof_needed
+                ),
+            ),
+            DisplayState::Proven => {
+                unreachable!("focus selection excludes proven capabilities")
+            }
+        };
+        if kind == FocusKind::JourneyBreak && !selection.downstream_core_ids.is_empty() {
+            let labels = selection
+                .downstream_core_ids
+                .iter()
+                .filter_map(|id| self.capability(id))
+                .map(|item| item.intent.label.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
+            summary.push_str(&format!(" Downstream unresolved: {labels}."));
         }
-        let labels = gap
-            .blocked_core_ids
-            .iter()
-            .filter_map(|id| self.capability(id))
-            .map(|item| item.intent.label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("The core journey stops here. Downstream: {labels}.")
+        CurrentFocus::Capability {
+            capability,
+            pinned: selection.pinned,
+            kind,
+            summary,
+            action: FocusAction {
+                heading: action_heading,
+                instruction: action_instruction,
+            },
+        }
     }
 }

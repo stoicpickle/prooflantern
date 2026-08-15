@@ -72,11 +72,11 @@ pub fn evaluate(
             .then_with(|| left.intent.id.cmp(&right.intent.id))
     });
 
-    let keystone = choose_keystone(&spec, &assessments, &mut warnings);
+    let focus_selection = choose_focus(&spec, &assessments, &mut warnings);
     Ok(EvaluatedProject {
         project: spec.project,
         capabilities: assessments,
-        keystone,
+        focus_selection,
         warnings,
     })
 }
@@ -193,6 +193,9 @@ fn validate(spec: &ProjectSpec, observations: &ObservationSet) -> Vec<String> {
             validate_fact(fact, &capability.id, &mut errors);
         }
     }
+    if !spec.capabilities.iter().any(|item| item.role.is_core()) {
+        errors.push("project must define at least one core capability".into());
+    }
 
     for capability in &spec.capabilities {
         for dependency in &capability.depends_on {
@@ -246,6 +249,12 @@ fn validate(spec: &ProjectSpec, observations: &ObservationSet) -> Vec<String> {
                 observation.capability_id
             ));
         }
+        if observation.fact.location.is_none() {
+            errors.push(format!(
+                "machine evidence for {} must have an inspectable location",
+                observation.capability_id
+            ));
+        }
         validate_fact(&observation.fact, &observation.capability_id, &mut errors);
         match (observation.source, observation.fact.claim) {
             (MachineSource::StaticScan, Claim::ImplementationPresent)
@@ -288,11 +297,11 @@ fn validate_fact(fact: &EvidenceFact, capability_id: &str, errors: &mut Vec<Stri
     }
 }
 
-fn choose_keystone(
+fn choose_focus(
     spec: &ProjectSpec,
     assessments: &[CapabilityAssessment],
     warnings: &mut Vec<ModelWarning>,
-) -> Option<KeystoneGap> {
+) -> Option<FocusSelection> {
     let by_id: BTreeMap<_, _> = assessments
         .iter()
         .map(|item| (item.intent.id.as_str(), item))
@@ -302,7 +311,7 @@ fn choose_keystone(
         if assessment.display.is_resolved() {
             warnings.push(ModelWarning::PinnedGapAlreadyProven(pin.clone()));
         } else {
-            return Some(gap_for(assessment, true, assessments));
+            return Some(focus_for(assessment, true, assessments));
         }
     }
 
@@ -326,19 +335,18 @@ fn choose_keystone(
                 })
                 .then_with(|| right.intent.id.cmp(&left.intent.id))
         })
-        .map(|item| gap_for(item, false, assessments))
+        .map(|item| focus_for(item, false, assessments))
 }
 
-fn gap_for(
+fn focus_for(
     assessment: &CapabilityAssessment,
     pinned: bool,
     assessments: &[CapabilityAssessment],
-) -> KeystoneGap {
-    KeystoneGap {
+) -> FocusSelection {
+    FocusSelection {
         capability_id: assessment.intent.id.clone(),
         pinned,
-        state: assessment.display,
-        blocked_core_ids: blocked_core_ids(&assessment.intent.id, assessments),
+        downstream_core_ids: blocked_core_ids(&assessment.intent.id, assessments),
     }
 }
 

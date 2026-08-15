@@ -4,7 +4,7 @@ use proof_lantern::{App, evaluate, load_project, ui};
 use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
-fn recipe_box_renders_the_promise_broken_path_and_keystone() {
+fn recipe_box_renders_the_promise_broken_path_and_current_focus() {
     for (width, height) in [(100, 30), (140, 40)] {
         let screen = render_screen(width, height, false, "reopen");
         assert!(
@@ -36,14 +36,53 @@ fn recipe_box_renders_the_promise_broken_path_and_keystone() {
             "{width}x{height}: {screen}"
         );
         assert!(
-            screen.contains("KEYSTONE GAP"),
+            screen.contains("JOURNEY BREAK"),
             "{width}x{height}: {screen}"
+        );
+        assert!(
+            screen.contains("Required implementation is recorded absent."),
+            "{width}x{height}: {screen}"
+        );
+        assert!(
+            screen.contains("Downstream unresolved: Find a saved recipe."),
+            "downstream focus was clipped at {width}x{height}: {screen}"
+        );
+        assert!(
+            !screen.contains("Find a save…"),
+            "{width}x{height}: {screen}"
+        );
+        assert!(
+            !screen.contains("The core journey stops here"),
+            "generic break language leaked at {width}x{height}: {screen}"
         );
         assert!(
             screen.contains("PROOF NEEDED"),
             "{width}x{height}: {screen}"
         );
     }
+}
+
+#[test]
+fn compact_focus_panel_distinguishes_unproven_from_unknown() {
+    let built = render_app_screen(100, 30, false, "save", pinned_recipe_box_app("save"));
+    assert!(built.contains("NEEDS PROOF"), "{built}");
+    assert!(
+        built.contains("Implementation evidence exists, but no current passing proof is recorded."),
+        "{built}"
+    );
+    assert!(built.contains("PROOF NEEDED"), "{built}");
+    assert!(!built.contains("JOURNEY BREAK"), "{built}");
+
+    let unknown = render_app_screen(100, 30, false, "find", pinned_recipe_box_app("find"));
+    assert!(unknown.contains("NEEDS EVIDENCE"), "{unknown}");
+    assert!(
+        unknown.contains(
+            "No current technical evidence establishes whether this capability exists or works."
+        ),
+        "{unknown}"
+    );
+    assert!(unknown.contains("NEXT CHECK"), "{unknown}");
+    assert!(!unknown.contains("JOURNEY BREAK"), "{unknown}");
 }
 
 #[test]
@@ -118,10 +157,12 @@ fn repository_self_map_renders_a_complete_core_journey() {
     );
     assert!(screen.contains("✓ NEXT"), "{screen}");
     assert!(!screen.contains("BUILT / UNPROVEN"), "{screen}");
+    assert!(screen.contains("CORE JOURNEY PROVEN"), "{screen}");
     assert!(
-        screen.contains("No unresolved core capability."),
+        screen.contains("All accepted core capabilities have current recorded proof."),
         "{screen}"
     );
+    assert!(!screen.contains("KEYSTONE GAP"), "{screen}");
 }
 
 fn render_screen(width: u16, height: u16, inspector: bool, selected: &str) -> String {
@@ -157,6 +198,14 @@ fn render_app_screen(
 
 fn recipe_box_app() -> App {
     project_app(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"))
+}
+
+fn pinned_recipe_box_app(capability_id: &str) -> App {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
+    let (mut spec, observations) =
+        load_project(root.join("project.yml"), root.join("observations.json")).unwrap();
+    spec.project.pinned_keystone = Some(capability_id.into());
+    App::new(evaluate(spec, observations).unwrap())
 }
 
 fn project_app(root: PathBuf) -> App {

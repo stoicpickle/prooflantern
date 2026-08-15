@@ -22,7 +22,7 @@ pub struct Cli {
 pub enum Command {
     /// Open the built-in Recipe Box prototype.
     Demo,
-    /// Print the deterministic keystone gap without opening the TUI.
+    /// Print the deterministic current focus without opening the TUI.
     Next {
         #[arg(value_name = "PATH", default_value = ".")]
         path: PathBuf,

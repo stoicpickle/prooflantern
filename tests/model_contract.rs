@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use proof_lantern::{
-    CapabilityIntent, CapabilityRole, Claim, DisplayState, EvidenceFact, EvidenceLocation,
-    Freshness, MachineObservation, MachineSource, ModelWarning, ObservationSet, evaluate,
-    load_project,
+    CapabilityIntent, CapabilityRole, Claim, CurrentFocus, DisplayState, EvaluatedProject,
+    EvidenceFact, EvidenceLocation, FocusKind, Freshness, MachineObservation, MachineSource,
+    ModelWarning, ObservationSet, evaluate, load_project,
 };
 
 fn fixture_paths() -> (PathBuf, PathBuf) {
@@ -11,8 +11,44 @@ fn fixture_paths() -> (PathBuf, PathBuf) {
     (root.join("project.yml"), root.join("observations.json"))
 }
 
+fn assert_focus(
+    project: &EvaluatedProject,
+    capability_id: &str,
+    kind: FocusKind,
+    heading: &str,
+    action_heading: &str,
+    action_marker: &str,
+) {
+    let CurrentFocus::Capability {
+        capability,
+        kind: actual_kind,
+        summary,
+        action,
+        ..
+    } = project.current_focus()
+    else {
+        panic!("expected a capability focus");
+    };
+    assert_eq!(capability.intent.id, capability_id);
+    assert_eq!(actual_kind, kind);
+    assert_eq!(actual_kind.heading(), heading);
+    assert_eq!(action.heading, action_heading);
+    assert!(action.instruction.contains(action_marker));
+    assert!(action.instruction.contains(&capability.intent.proof_needed));
+
+    if kind != FocusKind::JourneyBreak {
+        let summary = summary.to_lowercase();
+        for unsupported in ["journey break", "stops here", "blocks the promise"] {
+            assert!(
+                !summary.contains(unsupported),
+                "{kind:?} must not make a missing-specific claim: {summary}"
+            );
+        }
+    }
+}
+
 #[test]
-fn recipe_box_derives_truthful_states_and_the_keystone_gap() {
+fn recipe_box_derives_truthful_states_and_the_current_focus() {
     let (project_path, observations_path) = fixture_paths();
     let (spec, observations) =
         load_project(project_path, observations_path).expect("fixture should load");
@@ -39,17 +75,138 @@ fn recipe_box_derives_truthful_states_and_the_keystone_gap() {
         DisplayState::Proven
     );
 
-    let gap = evaluated
-        .keystone
-        .as_ref()
-        .expect("a keystone gap should exist");
-    assert_eq!(gap.capability_id, "reopen");
-    assert_eq!(gap.state, DisplayState::Missing);
-    assert_eq!(gap.blocked_core_ids, ["find"]);
-    assert!(!gap.pinned);
+    let CurrentFocus::Capability {
+        capability,
+        pinned,
+        kind,
+        summary,
+        action,
+    } = evaluated.current_focus()
+    else {
+        panic!("Recipe Box should have a current capability focus");
+    };
+    assert_eq!(capability.intent.id, "reopen");
+    assert_eq!(kind, FocusKind::JourneyBreak);
+    assert_eq!(kind.heading(), "JOURNEY BREAK");
+    assert!(!pinned);
     assert_eq!(
-        evaluated.gap_impact(gap),
-        "The core journey stops here. Downstream: Find a saved recipe."
+        summary,
+        "Required implementation is recorded absent. Downstream unresolved: Find a saved recipe."
+    );
+    assert_eq!(action.heading, "PROOF NEEDED");
+    assert_eq!(
+        action.instruction,
+        "Close app, reopen it, and confirm the saved recipe appears."
+    );
+}
+
+#[test]
+fn current_focus_language_tracks_the_selected_evidence_state() {
+    let (project_path, observations_path) = fixture_paths();
+    let (base_spec, base_observations) = load_project(project_path, observations_path).unwrap();
+
+    let mut built_spec = base_spec.clone();
+    built_spec.project.pinned_keystone = Some("save".into());
+    let built = evaluate(built_spec, base_observations.clone()).unwrap();
+    assert_focus(
+        &built,
+        "save",
+        FocusKind::NeedsProof,
+        "NEEDS PROOF",
+        "PROOF NEEDED",
+        "Save a recipe",
+    );
+
+    let mut unknown_spec = base_spec.clone();
+    unknown_spec.project.pinned_keystone = Some("find".into());
+    let unknown = evaluate(unknown_spec, base_observations.clone()).unwrap();
+    assert_focus(
+        &unknown,
+        "find",
+        FocusKind::NeedsEvidence,
+        "NEEDS EVIDENCE",
+        "NEXT CHECK",
+        "Inspect the implementation or record evidence",
+    );
+
+    let mut failed_spec = base_spec.clone();
+    failed_spec.project.pinned_keystone = Some("add".into());
+    let mut failed_observations = base_observations.clone();
+    for observation in &mut failed_observations.observations {
+        if observation.capability_id == "add" && observation.fact.claim == Claim::VerificationPassed
+        {
+            observation.fact.freshness = Freshness::Stale;
+        }
+    }
+    failed_observations.observations.push(MachineObservation {
+        capability_id: "add".into(),
+        source: MachineSource::ImportedTestResult,
+        fact: EvidenceFact {
+            claim: Claim::VerificationFailed,
+            freshness: Freshness::Current,
+            summary: "The current add check failed.".into(),
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
+        },
+    });
+    let failed = evaluate(failed_spec, failed_observations).unwrap();
+    assert_focus(
+        &failed,
+        "add",
+        FocusKind::FailedCheck,
+        "FAILED CHECK",
+        "NEXT CHECK",
+        "replace or mark stale the failed record",
+    );
+
+    let mut conflicting_spec = base_spec;
+    conflicting_spec.project.pinned_keystone = Some("reopen".into());
+    let mut conflicting_observations = base_observations;
+    conflicting_observations
+        .observations
+        .push(MachineObservation {
+            capability_id: "reopen".into(),
+            source: MachineSource::ImportedTestResult,
+            fact: EvidenceFact {
+                claim: Claim::VerificationPassed,
+                freshness: Freshness::Current,
+                summary: "A conflicting current result says reopen passed.".into(),
+                location: Some(EvidenceLocation {
+                    path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                    line_start: None,
+                    line_end: None,
+                }),
+            },
+        });
+    let conflicting = evaluate(conflicting_spec, conflicting_observations).unwrap();
+    assert_focus(
+        &conflicting,
+        "reopen",
+        FocusKind::ResolveConflict,
+        "RESOLVE CONFLICT",
+        "NEXT CHECK",
+        "Reconcile or mark stale the conflicting records",
+    );
+}
+
+#[test]
+fn a_project_without_an_accepted_core_journey_is_rejected() {
+    let (project_path, observations_path) = fixture_paths();
+    let (mut spec, observations) = load_project(project_path, observations_path).unwrap();
+    spec.project.pinned_keystone = None;
+    for capability in &mut spec.capabilities {
+        capability.role = CapabilityRole::Optional;
+        capability.depends_on.clear();
+    }
+
+    let error = evaluate(spec, observations).expect_err("an empty core journey is not proven");
+    assert!(
+        error
+            .to_string()
+            .contains("project must define at least one core capability")
     );
 }
 
@@ -64,7 +221,11 @@ fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "invalid authority".into(),
-            location: None,
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
         },
     });
 
@@ -73,6 +234,29 @@ fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
         error
             .to_string()
             .contains("StaticScan cannot assert VerificationPassed")
+    );
+}
+
+#[test]
+fn machine_observations_must_reference_inspectable_evidence() {
+    let (project_path, observations_path) = fixture_paths();
+    let (spec, mut observations) = load_project(project_path, observations_path).unwrap();
+    observations.observations.push(MachineObservation {
+        capability_id: "find".into(),
+        source: MachineSource::StaticScan,
+        fact: EvidenceFact {
+            claim: Claim::ImplementationPresent,
+            freshness: Freshness::Current,
+            summary: "A scanner claims implementation exists without saying where.".into(),
+            location: None,
+        },
+    });
+
+    let error = evaluate(spec, observations).expect_err("opaque machine evidence must fail");
+    assert!(
+        error
+            .to_string()
+            .contains("machine evidence for find must have an inspectable location")
     );
 }
 
@@ -136,9 +320,14 @@ fn a_human_pin_overrides_the_default_severity_order() {
     spec.project.pinned_keystone = Some("save".into());
 
     let evaluated = evaluate(spec, observations).unwrap();
-    let gap = evaluated.keystone.unwrap();
-    assert_eq!(gap.capability_id, "save");
-    assert!(gap.pinned);
+    let CurrentFocus::Capability {
+        capability, pinned, ..
+    } = evaluated.current_focus()
+    else {
+        panic!("the human pin should remain the current focus");
+    };
+    assert_eq!(capability.intent.id, "save");
+    assert!(pinned);
 }
 
 #[test]
@@ -175,7 +364,11 @@ fn blocked_descendants_are_found_through_a_proven_intermediate() {
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A recorded search check passed.".into(),
-            location: None,
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
         },
     });
     spec.capabilities.push(CapabilityIntent {
@@ -190,9 +383,16 @@ fn blocked_descendants_are_found_through_a_proven_intermediate() {
     });
 
     let evaluated = evaluate(spec, observations).unwrap();
-    let gap = evaluated.keystone.unwrap();
-    assert_eq!(gap.capability_id, "reopen");
-    assert_eq!(gap.blocked_core_ids, ["use"]);
+    let CurrentFocus::Capability {
+        capability,
+        summary,
+        ..
+    } = evaluated.current_focus()
+    else {
+        panic!("the missing capability should remain the current focus");
+    };
+    assert_eq!(capability.intent.id, "reopen");
+    assert!(summary.ends_with("Downstream unresolved: Use the found recipe."));
 }
 
 #[test]
@@ -206,7 +406,11 @@ fn a_failing_proof_does_not_claim_that_implementation_exists() {
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The recorded find check failed before reaching implementation.".into(),
-            location: None,
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
         },
     });
     observations.observations.push(MachineObservation {
@@ -216,7 +420,11 @@ fn a_failing_proof_does_not_claim_that_implementation_exists() {
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The recorded reopen check also failed.".into(),
-            location: None,
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
         },
     });
 
