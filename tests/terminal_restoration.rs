@@ -154,9 +154,9 @@ fn read_terminal_output(reader: &mut dyn Read, writer: &mut dyn Write) -> io::Re
 }
 
 fn assert_restored(output: &[u8]) {
-    assert_occurs_before(output, ENTER_ALTERNATE_SCREEN, LEAVE_ALTERNATE_SCREEN);
-    assert_occurs_before(output, HIDE_CURSOR, SHOW_CURSOR);
-    assert_occurs_before(output, LEAVE_ALTERNATE_SCREEN, SHOW_CURSOR);
+    assert_last_occurs_before(output, ENTER_ALTERNATE_SCREEN, LEAVE_ALTERNATE_SCREEN);
+    assert_last_occurs_before(output, HIDE_CURSOR, SHOW_CURSOR);
+    assert_last_occurs_before(output, LEAVE_ALTERNATE_SCREEN, SHOW_CURSOR);
 }
 
 fn assert_occurs_before(output: &[u8], first: &[u8], second: &[u8]) {
@@ -165,10 +165,31 @@ fn assert_occurs_before(output: &[u8], first: &[u8], second: &[u8]) {
     let _second_index = second_search_start + find_bytes(&output[second_search_start..], second);
 }
 
+fn assert_last_occurs_before(output: &[u8], first: &[u8], second: &[u8]) {
+    let first_index = find_last_bytes(output, first);
+    let second_index = find_last_bytes(output, second);
+    assert!(
+        first_index < second_index,
+        "final {first:?} must occur before final {second:?}"
+    );
+}
+
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> usize {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+        .unwrap_or_else(|| {
+            panic!(
+                "missing {needle:?}; tail={:?}",
+                String::from_utf8_lossy(&haystack[haystack.len().saturating_sub(500)..])
+            )
+        })
+}
+
+fn find_last_bytes(haystack: &[u8], needle: &[u8]) -> usize {
+    haystack
+        .windows(needle.len())
+        .rposition(|window| window == needle)
         .unwrap_or_else(|| {
             panic!(
                 "missing {needle:?}; tail={:?}",

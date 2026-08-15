@@ -251,4 +251,18 @@ impl EvaluatedProject {
             .iter()
             .filter(|item| item.intent.role.is_core())
     }
+
+    pub fn gap_impact(&self, gap: &KeystoneGap) -> String {
+        if gap.blocked_core_ids.is_empty() {
+            return "This unresolved core capability directly blocks the project promise.".into();
+        }
+        let labels = gap
+            .blocked_core_ids
+            .iter()
+            .filter_map(|id| self.capability(id))
+            .map(|item| item.intent.label.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("The core journey stops here. Downstream: {labels}.")
+    }
 }

@@ -39,11 +39,18 @@ fn recipe_box_derives_truthful_states_and_the_keystone_gap() {
         DisplayState::Proven
     );
 
-    let gap = evaluated.keystone.expect("a keystone gap should exist");
+    let gap = evaluated
+        .keystone
+        .as_ref()
+        .expect("a keystone gap should exist");
     assert_eq!(gap.capability_id, "reopen");
     assert_eq!(gap.state, DisplayState::Missing);
     assert_eq!(gap.blocked_core_ids, ["find"]);
     assert!(!gap.pinned);
+    assert_eq!(
+        evaluated.gap_impact(gap),
+        "The core journey stops here. Downstream: Find a saved recipe."
+    );
 }
 
 #[test]

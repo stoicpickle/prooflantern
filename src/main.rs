@@ -11,7 +11,7 @@ use std::{
 
 use clap::Parser;
 use proof_lantern::{
-    App, CapabilityAssessment, EvaluatedProject,
+    App, EvaluatedProject,
     cli::{Cli, Invocation},
     evaluate, load_project,
 };
@@ -109,11 +109,7 @@ fn print_next(project: &EvaluatedProject) -> io::Result<()> {
         capability.intent.label,
         capability.display.label()
     )?;
-    writeln!(
-        output,
-        "{}",
-        gap_impact(project, gap.blocked_core_ids.as_slice())
-    )?;
+    writeln!(output, "{}", project.gap_impact(gap))?;
     writeln!(output, "Proof needed: {}", capability.intent.proof_needed)
 }
 
@@ -147,19 +143,6 @@ fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
         }
     }
     writeln!(output, "Proof needed: {}", capability.intent.proof_needed)
-}
-
-fn gap_impact(project: &EvaluatedProject, blocked: &[String]) -> String {
-    if blocked.is_empty() {
-        return "This unresolved core capability directly blocks the project promise.".into();
-    }
-    let labels = blocked
-        .iter()
-        .filter_map(|id| project.capability(id))
-        .map(|item: &CapabilityAssessment| item.intent.label.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("The core journey stops here. Downstream: {labels}.")
 }
 
 #[cfg(feature = "terminal-test-hooks")]

@@ -287,13 +287,19 @@ fn render_supporting(
             } else {
                 state_style(support.display, palette)
             };
+            let label_width = usize::from(area.width)
+                .saturating_sub(indent + 6 + "  SUPPORTING".len())
+                .max(1);
             Line::from(vec![
                 Span::raw(format!("{:indent$}└──── ", "")),
                 Span::styled(
-                    format!(
-                        "{} {}",
-                        support.display.glyph(),
-                        support.map_label().to_uppercase()
+                    truncate(
+                        &format!(
+                            "{} {}",
+                            support.display.glyph(),
+                            support.map_label().to_uppercase()
+                        ),
+                        label_width,
                     ),
                     style,
                 ),
@@ -355,18 +361,7 @@ fn render_keystone(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palett
     let Some(capability) = app.project().capability(&gap.capability_id) else {
         return;
     };
-    let impact = if gap.blocked_core_ids.is_empty() {
-        "This unresolved core capability directly blocks the project promise.".to_owned()
-    } else {
-        let labels = gap
-            .blocked_core_ids
-            .iter()
-            .filter_map(|id| app.project().capability(id))
-            .map(|item| item.intent.label.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("The core journey stops here. Downstream: {labels}.")
-    };
+    let impact = app.project().gap_impact(gap);
     let width = usize::from(area.width.saturating_sub(2));
     let lines = vec![
         Line::from(vec![
@@ -379,7 +374,10 @@ fn render_keystone(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palett
                 Style::default().fg(palette.text).bold(),
             ),
         ]),
-        Line::from(Span::styled(impact, Style::default().fg(palette.warning))),
+        Line::from(Span::styled(
+            truncate(&impact, width.max(1)),
+            Style::default().fg(palette.warning),
+        )),
         Line::from(vec![
             Span::styled(
                 "PROOF NEEDED  ",
@@ -450,7 +448,12 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
             Style::default().fg(palette.muted),
         )));
     } else {
-        for reason in capability.reasons.iter().take(3) {
+        let visible_reasons = if capability.reasons.len() > 3 {
+            2
+        } else {
+            capability.reasons.len()
+        };
+        for reason in capability.reasons.iter().take(visible_reasons) {
             let source = match reason.source {
                 EvidenceSource::Human => "HUMAN",
                 EvidenceSource::StaticScan => "STATIC SCAN",
@@ -478,6 +481,15 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
                     Style::default().fg(palette.muted),
                 )));
             }
+        }
+        if capability.reasons.len() > visible_reasons {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "… {} more evidence facts",
+                    capability.reasons.len() - visible_reasons
+                ),
+                Style::default().fg(palette.muted),
+            )));
         }
     }
     lines.extend([
