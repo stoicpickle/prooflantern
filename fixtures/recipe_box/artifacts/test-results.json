@@ -1,0 +1,7 @@
+{
+  "recorded_at": "2026-08-15T00:00:00Z",
+  "results": [
+    { "check": "add_recipe", "outcome": "passed" },
+    { "check": "local_database_round_trip", "outcome": "passed" }
+  ]
+}

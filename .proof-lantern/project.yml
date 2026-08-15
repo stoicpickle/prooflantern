@@ -1,0 +1,63 @@
+schema_version: 1
+project:
+  name: Proof Lantern
+  promise: Show a project's accepted core journey, explain the evidence behind each state, and name its honest current focus.
+capabilities:
+  - id: load-project
+    label: Load local project evidence
+    map_label: Load
+    role:
+      kind: core
+      order: 1
+    proof_needed: Load this repository's project.yml and observations.json through the normal evaluator and render its project name without an error.
+
+  - id: derive-states
+    label: Derive truthful evidence states
+    map_label: Derive
+    role:
+      kind: core
+      order: 2
+    depends_on: [load-project]
+    proof_needed: Run the model contract tests and confirm proven, unproven, missing, unknown, stale, failing, and conflicting evidence remain distinct.
+
+  - id: render-journey
+    label: Render the accepted core journey
+    map_label: Render
+    role:
+      kind: core
+      order: 3
+    depends_on: [derive-states]
+    proof_needed: Render the fixture at 100x30 and 140x40 and match the reviewed journey snapshots.
+
+  - id: inspect-evidence
+    label: Explain a capability's evidence
+    map_label: Explain
+    role:
+      kind: core
+      order: 4
+    depends_on: [render-journey]
+    proof_needed: Open compact and wide inspectors and confirm Why, Evidence, and Proof needed are visible for the selected capability.
+
+  - id: report-keystone
+    label: Print the deterministic current focus
+    map_label: Next
+    role:
+      kind: core
+      order: 5
+    depends_on: [inspect-evidence]
+    proof_needed: Run subprocess integration tests and assert the state-sensitive Recipe Box focus plus the positive completed-project result.
+
+  - id: terminal-safety
+    label: Restore terminal state safely
+    map_label: Terminal safety
+    role:
+      kind: supporting
+      supports: render-journey
+    proof_needed: Exercise normal exit, returned error, and panic in a PTY and confirm the alternate screen and cursor are restored.
+
+  - id: refresh-evidence
+    label: Refresh repository evidence
+    map_label: Refresh
+    role:
+      kind: optional
+    proof_needed: Refresh machine observations from repository evidence without modifying human-owned intent.

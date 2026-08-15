@@ -1,0 +1,54 @@
+schema_version: 1
+project:
+  name: Recipe Box
+  promise: Save a recipe and find it again tomorrow.
+capabilities:
+  - id: add
+    label: Add a recipe
+    map_label: Add
+    role:
+      kind: core
+      order: 1
+    proof_needed: Create a recipe and confirm it appears in the current session.
+  - id: save
+    label: Save recipe locally
+    map_label: Save
+    role:
+      kind: core
+      order: 2
+    depends_on: [add]
+    proof_needed: Save a recipe, close the app, and confirm the record persists.
+  - id: reopen
+    label: Reopen saved recipes
+    map_label: Reopen
+    role:
+      kind: core
+      order: 3
+    depends_on: [save]
+    proof_needed: Close app, reopen it, and confirm the saved recipe appears.
+    manual_evidence:
+      - claim: implementation_absent
+        freshness: current
+        summary: The builder confirmed that no reopen flow has been implemented.
+  - id: find
+    label: Find a saved recipe
+    map_label: Find
+    role:
+      kind: core
+      order: 4
+    depends_on: [reopen]
+    proof_needed: Search by recipe name and open the matching saved recipe.
+  - id: local_database
+    label: Local database
+    map_label: Local database
+    role:
+      kind: supporting
+      supports: save
+    proof_needed: Write and read a recipe record using the local database adapter.
+  - id: share
+    label: Share recipes
+    map_label: Share
+    role:
+      kind: optional
+    depends_on: [find]
+    proof_needed: Export a saved recipe through the system share surface.

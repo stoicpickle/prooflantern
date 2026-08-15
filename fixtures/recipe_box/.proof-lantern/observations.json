@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "observations": [
+    {
+      "capability_id": "add",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "Recipe creation code is present.",
+        "location": {
+          "path": "fixtures/recipe_box/src/add_recipe.rs",
+          "line_start": 1,
+          "line_end": 5
+        }
+      }
+    },
+    {
+      "capability_id": "add",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "The recorded add-recipe check passed.",
+        "location": {
+          "path": "fixtures/recipe_box/artifacts/test-results.json"
+        }
+      }
+    },
+    {
+      "capability_id": "save",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "Local save code appears to exist.",
+        "location": {
+          "path": "fixtures/recipe_box/src/storage.rs",
+          "line_start": 1,
+          "line_end": 8
+        }
+      }
+    },
+    {
+      "capability_id": "local_database",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "A local database adapter is present.",
+        "location": {
+          "path": "fixtures/recipe_box/src/storage.rs",
+          "line_start": 1,
+          "line_end": 8
+        }
+      }
+    },
+    {
+      "capability_id": "local_database",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "The recorded database round-trip check passed.",
+        "location": {
+          "path": "fixtures/recipe_box/artifacts/test-results.json"
+        }
+      }
+    }
+  ]
+}

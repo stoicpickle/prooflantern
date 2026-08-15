@@ -1,0 +1,34 @@
+---
+source: tests/render_smoke.rs
+expression: "render_screen(100, 30, false, \"reopen\")"
+---
+┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
+│PROOF LANTERN // RECIPE BOX   FOCUS  REOPEN SAVED RECIPES                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
+│PROMISE                                                                                           │
+│“Save a recipe and find it again tomorrow.”                                                       │
+│                                                                                                  │
+│                                                    ┌──────────────────┐                          │
+│✓ ADD               ━━━━━━◐ SAVE              ━━╸   │╳ REOPEN          │ ┄┄┄  ? FIND              │
+│PROVEN                    BUILT /                   │MISSING           │      UNKNOWN             │
+│                          UNPROVEN                  │                  │                          │
+│                                                    └──────────────────┘                          │
+│                            └──── ✓ LOCAL DATABASE  SUPPORTING                                    │
+│                                                                                                  │
+│                                                                                                  │
+│OPTIONAL  ? SHARE                                                                                 │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│                                                                                                  │
+│┌ JOURNEY BREAK ─────────────────────────────────────────────────────────────────────────────────┐│
+││╳ REOPEN SAVED RECIPES                                                                          ││
+││Required implementation is recorded absent. Downstream unresolved: Find a saved recipe.         ││
+││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                       ││
+│└────────────────────────────────────────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
+│←→ NODE   E INSPECT   G FOCUS   Q EXIT                                                            │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

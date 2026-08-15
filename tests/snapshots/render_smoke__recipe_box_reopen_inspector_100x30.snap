@@ -1,0 +1,34 @@
+---
+source: tests/render_smoke.rs
+expression: "render_screen(100, 30, true, \"reopen\")"
+---
+┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
+│PROOF LANTERN // RECIPE BOX   FOCUS  REOPEN SAVED RECIPES                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
+│PROMISE                                                                                           │
+│“Save a recipe and find it again tomorrow.”                                                       │
+│                                                                                                  │
+│                                                    ┌──────────────────┐                          │
+│✓ ADD               ━━━━━━◐ SAVE              ━━╸   │╳ REOPEN          │ ┄┄┄  ? FIND              │
+│PROVEN                    BUILT /                   │MISSING           │      UNKNOWN             │
+│                          UNPROVEN                  │                  │                          │
+│                                                    └──────────────────┘                          │
+│                            └──── ✓ LOCAL DATABASE  SUPPORTING                                    │
+│                                                                                                  │
+┌ INSPECTOR ───────────────────────────────────────────────────────────────────────────────────────┐
+│╳ REOPEN SAVED RECIPES                                                                            │
+│MISSING   ◇ ACCEPTED                                                                              │
+│                                                                                                  │
+│WHY                                                                                               │
+│Explicit current evidence says the required implementation is absent.                             │
+│                                                                                                  │
+│EVIDENCE                                                                                          │
+│HUMAN  The builder confirmed that no reopen flow has been implemented.                            │
+│                                                                                                  │
+│PROOF NEEDED                                                                                      │
+│Close app, reopen it, and confirm the saved recipe appears.                                       │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
+│←→ NODE   E CLOSE   G FOCUS   Q EXIT                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
