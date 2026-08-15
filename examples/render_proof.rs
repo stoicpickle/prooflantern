@@ -23,8 +23,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or(40);
     let selected = env::args().nth(4).unwrap_or_else(|| "reopen".into());
     let inspector = env::args().nth(5).as_deref() == Some("inspector");
+    let project_root = env::args_os()
+        .nth(6)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"));
 
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
+    let root = project_root.join(".proof-lantern");
     let (spec, observations) =
         load_project(root.join("project.yml"), root.join("observations.json"))?;
     let mut app = App::new(evaluate(spec, observations)?);
@@ -47,10 +51,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn render_svg(cells: &[Cell], width: u16, height: u16) -> String {
     const CELL_W: u16 = 10;
     const CELL_H: u16 = 19;
+    const TEXT_BASELINE: u16 = 15;
     let pixel_width = u32::from(width) * u32::from(CELL_W);
     let pixel_height = u32::from(height) * u32::from(CELL_H);
     let mut svg = format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pixel_width}" height="{pixel_height}" viewBox="0 0 {pixel_width} {pixel_height}"><rect width="100%" height="100%" fill="#050505"/><g font-family="Menlo, Monaco, monospace" font-size="15" dominant-baseline="hanging">"##
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pixel_width}" height="{pixel_height}" viewBox="0 0 {pixel_width} {pixel_height}"><rect width="100%" height="100%" fill="#050505"/><g font-family="Menlo, Monaco, monospace" font-size="15">"##
     );
     for (index, cell) in cells.iter().enumerate() {
         let x = (index % usize::from(width)) as u16 * CELL_W;
@@ -75,7 +80,7 @@ fn render_svg(cells: &[Cell], width: u16, height: u16) -> String {
         let _ = write!(
             svg,
             r#"<text x="{x}" y="{}" fill="{fg}" font-weight="{weight}">{symbol}</text>"#,
-            y + 1
+            y + TEXT_BASELINE
         );
     }
     svg.push_str("</g></svg>");

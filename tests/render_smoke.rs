@@ -56,9 +56,19 @@ fn compact_inspector_and_wide_layout_expose_only_the_needed_sections() {
         );
     }
     assert!(compact.contains("ACCEPTED CORE JOURNEY"), "{compact}");
+    assert_eq!(
+        compact.matches("◇ ACCEPTED").count(),
+        1,
+        "accepted badge should appear only in the compact inspector: {compact}"
+    );
 
     let wide = render_screen(140, 40, false, "save");
     assert!(wide.contains("INSPECTOR"), "{wide}");
+    assert_eq!(
+        wide.matches("◇ ACCEPTED").count(),
+        1,
+        "accepted badge should appear only in the wide inspector: {wide}"
+    );
     assert!(wide.contains("BUILT / UNPROVEN"), "{wide}");
     assert!(wide.contains("Local save code appears to"), "{wide}");
     assert!(wide.contains("exist."), "{wide}");
@@ -98,10 +108,34 @@ fn undersized_terminal_gets_an_explicit_bail_screen() {
     assert!(screen.contains("REQUIRED 100 × 30"), "{screen}");
 }
 
+#[test]
+fn repository_self_map_renders_its_real_keystone() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let screen = render_app_screen(100, 30, false, "report-keystone", project_app(root));
+    assert!(
+        screen.contains("PROOF LANTERN // PROOF LANTERN"),
+        "{screen}"
+    );
+    assert!(screen.contains("◐ NEXT"), "{screen}");
+    assert!(screen.contains("BUILT /"), "{screen}");
+    assert!(screen.contains("UNPROVEN"), "{screen}");
+    assert!(screen.contains("KEYSTONE GAP"), "{screen}");
+    assert!(screen.contains("subprocess integration test"), "{screen}");
+}
+
 fn render_screen(width: u16, height: u16, inspector: bool, selected: &str) -> String {
+    render_app_screen(width, height, inspector, selected, recipe_box_app())
+}
+
+fn render_app_screen(
+    width: u16,
+    height: u16,
+    inspector: bool,
+    selected: &str,
+    mut app: App,
+) -> String {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
-    let mut app = recipe_box_app();
     let _ = app.select_id(selected);
     if inspector {
         app.toggle_inspector();
@@ -121,7 +155,11 @@ fn render_screen(width: u16, height: u16, inspector: bool, selected: &str) -> St
 }
 
 fn recipe_box_app() -> App {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box/.proof-lantern");
+    project_app(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"))
+}
+
+fn project_app(root: PathBuf) -> App {
+    let root = root.join(".proof-lantern");
     let (spec, observations) =
         load_project(root.join("project.yml"), root.join("observations.json")).unwrap();
     App::new(evaluate(spec, observations).unwrap())

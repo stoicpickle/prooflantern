@@ -4,6 +4,9 @@ use crate::model::{ObservationSet, ProjectSpec};
 
 #[derive(Debug)]
 pub enum LoadError {
+    MissingProject {
+        path: String,
+    },
     Read {
         path: String,
         source: std::io::Error,
@@ -15,6 +18,10 @@ pub enum LoadError {
 impl fmt::Display for LoadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingProject { path } => write!(
+                formatter,
+                "no Proof Lantern project found at {path}\nTry `proof-lantern demo` to explore the built-in example, or create {path} for this project."
+            ),
             Self::Read { path, source } => write!(formatter, "could not read {path}: {source}"),
             Self::ProjectYaml(source) => write!(formatter, "invalid project YAML: {source}"),
             Self::ObservationsJson(source) => {
@@ -27,6 +34,7 @@ impl fmt::Display for LoadError {
 impl Error for LoadError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::MissingProject { .. } => None,
             Self::Read { source, .. } => Some(source),
             Self::ProjectYaml(source) => Some(source),
             Self::ObservationsJson(source) => Some(source),
@@ -40,7 +48,7 @@ pub fn load_project(
 ) -> Result<(ProjectSpec, ObservationSet), LoadError> {
     let project_path = project_path.as_ref();
     let observations_path = observations_path.as_ref();
-    let project_text = read(project_path)?;
+    let project_text = read_project(project_path)?;
     let project = serde_saphyr::from_str(&project_text).map_err(LoadError::ProjectYaml)?;
     let observations = match fs::read_to_string(observations_path) {
         Ok(text) => serde_json::from_str(&text).map_err(LoadError::ObservationsJson)?,
@@ -58,9 +66,17 @@ pub fn load_project(
     Ok((project, observations))
 }
 
-fn read(path: &Path) -> Result<String, LoadError> {
-    fs::read_to_string(path).map_err(|source| LoadError::Read {
-        path: path.display().to_string(),
-        source,
-    })
+fn read_project(path: &Path) -> Result<String, LoadError> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+            Err(LoadError::MissingProject {
+                path: path.display().to_string(),
+            })
+        }
+        Err(source) => Err(LoadError::Read {
+            path: path.display().to_string(),
+            source,
+        }),
+    }
 }

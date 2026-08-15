@@ -9,10 +9,10 @@ expression: "render_screen(140, 40, false, \"save\")"
 │PROMISE                                                                                        ││◐ SAVE RECIPE LOCALLY                    │
 │“Save a recipe and find it again tomorrow.”                                                    ││BUILT / UNPROVEN   ◇ ACCEPTED            │
 │                                                                                               ││                                         │
-│✓ ADD                    ┌──────────────────┐      ╳ REOPEN                 ? FIND             ││WHY                                      │
-│PROVEN                   │◐ SAVE            │      MISSING                  UNKNOWN            ││Implementation evidence exists, but no   │
-│◇ ACCEPTED         ━━━━━━│BUILT / UNPROVEN  │━━╸   ◇ ACCEPTED          ┄┄┄  ◇ ACCEPTED         ││current passing proof is recorded.       │
-│                         │◇ ACCEPTED        │                                                  ││                                         │
+│                         ┌──────────────────┐                                                  ││WHY                                      │
+│✓ ADD              ━━━━━━│◐ SAVE            │━━╸   ╳ REOPEN            ┄┄┄  ? FIND             ││Implementation evidence exists, but no   │
+│PROVEN                   │BUILT /           │      MISSING                  UNKNOWN            ││current passing proof is recorded.       │
+│                         │UNPROVEN          │                                                  ││                                         │
 │                         └──────────────────┘                                                  ││EVIDENCE                                 │
 │                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││STATIC SCAN  Local save code appears to  │
 │                                                                                               ││exist.                                   │

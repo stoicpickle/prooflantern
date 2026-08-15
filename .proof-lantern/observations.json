@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "observations": [
+    {
+      "capability_id": "load-project",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The loader reads strict project YAML and optional machine observations from the repository-local directory.",
+        "location": {
+          "path": "src/load.rs",
+          "line_start": 45,
+          "line_end": 66
+        }
+      }
+    },
+    {
+      "capability_id": "load-project",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, the self-map render contract loaded this repository's project evidence and evaluated it successfully.",
+        "location": {
+          "path": "tests/render_smoke.rs",
+          "line_start": 112,
+          "line_end": 124
+        }
+      }
+    },
+    {
+      "capability_id": "derive-states",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "Pure evaluation derives implementation, verification, display state, warnings, and the keystone from intent and observations.",
+        "location": {
+          "path": "src/reasoning.rs",
+          "line_start": 23,
+          "line_end": 133
+        }
+      }
+    },
+    {
+      "capability_id": "derive-states",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, all eight model contract tests passed, including authority, conflict, stale-proof, and keystone cases.",
+        "location": {
+          "path": "tests/model_contract.rs",
+          "line_start": 14,
+          "line_end": 227
+        }
+      }
+    },
+    {
+      "capability_id": "render-journey",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The TUI renders the project promise, accepted core journey, supporting capabilities, and keystone panel.",
+        "location": {
+          "path": "src/ui.rs",
+          "line_start": 40,
+          "line_end": 135
+        }
+      }
+    },
+    {
+      "capability_id": "render-journey",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, the Recipe Box render contract and its reviewed snapshots passed at the supported terminal sizes.",
+        "location": {
+          "path": "tests/render_smoke.rs",
+          "line_start": 6,
+          "line_end": 109
+        }
+      }
+    },
+    {
+      "capability_id": "inspect-evidence",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The inspector renders a separate accepted badge, Why, evidence summaries and locations, and Proof needed.",
+        "location": {
+          "path": "src/ui.rs",
+          "line_start": 404,
+          "line_end": 500
+        }
+      }
+    },
+    {
+      "capability_id": "inspect-evidence",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, compact and wide inspector assertions passed with Why, Evidence, Proof needed, and the accepted badge visible.",
+        "location": {
+          "path": "tests/render_smoke.rs",
+          "line_start": 49,
+          "line_end": 85
+        }
+      }
+    },
+    {
+      "capability_id": "report-keystone",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The next command prints the selected gap, its impact, and the proof still needed.",
+        "location": {
+          "path": "src/main.rs",
+          "line_start": 96,
+          "line_end": 118
+        }
+      }
+    },
+    {
+      "capability_id": "terminal-safety",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The TUI runs inside Ratatui's managed terminal lifecycle for normal, error, and panic paths.",
+        "location": {
+          "path": "src/main.rs",
+          "line_start": 51,
+          "line_end": 82
+        }
+      }
+    },
+    {
+      "capability_id": "terminal-safety",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-15, all three PTY tests passed for normal exit, returned error, and panic restoration.",
+        "location": {
+          "path": "tests/terminal_restoration.rs",
+          "line_start": 30,
+          "line_end": 59
+        }
+      }
+    }
+  ]
+}

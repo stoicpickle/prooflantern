@@ -5,11 +5,18 @@ core user journey has accepted, built, proven, left missing, or not yet
 understood. It then names one deterministic keystone gap and explains the
 evidence behind that choice.
 
-![Recipe Box prototype](proof/recipe-box-100x30.png)
+![Proof Lantern mapping itself](proof/proof-lantern-self-100x30.png)
 
 ## Try the prototype
 
-The built-in Recipe Box fixture demonstrates the current vertical slice:
+Run Proof Lantern in this checkout to open its evidence-backed self-map:
+
+```sh
+cargo run
+```
+
+The built-in Recipe Box fixture remains a compact demonstration of missing,
+unknown, built, and proven states:
 
 ```sh
 cargo run -- demo
@@ -25,9 +32,15 @@ Inside the TUI:
 Plain terminal commands expose the same evaluated model:
 
 ```sh
+cargo run -- next .
+cargo run -- explain report-keystone .
 cargo run -- next fixtures/recipe_box
 cargo run -- explain save fixtures/recipe_box
 ```
+
+To open another authored project, pass its root directory. If it does not yet
+contain `.proof-lantern/project.yml`, Proof Lantern explains the expected path
+and points to the built-in demo without creating or overwriting anything.
 
 The TUI requires at least 100×30 cells. At 128×36 and above, the inspector
 remains visible beside the journey.
@@ -52,6 +65,8 @@ evidence remains visibly `CONFLICTING` rather than being guessed away.
 
 - A four-node accepted journey and one supporting branch remain readable at
   100×30 and 140×40.
+- Proof Lantern can load and render its own five-node journey from real local
+  source and test evidence.
 - A missing core capability physically interrupts the path.
 - The inspector shows `WHY`, `EVIDENCE`, and `PROOF NEEDED`.
 - Keystone selection is deterministic and excludes supporting and optional
@@ -77,6 +92,7 @@ snapshot tests:
 ```sh
 cargo run --example render_proof -- proof/recipe-box-100x30.svg 100 30 reopen
 cargo run --example render_proof -- proof/recipe-box-save-140x40.svg 140 40 save
+cargo run --example render_proof -- proof/proof-lantern-self-100x30.svg 100 30 report-keystone closed .
 ```
 
 The original product kickoff remains in

@@ -172,7 +172,7 @@ fn render_core_path(
                 ))),
                 Rect::new(
                     connector_area.x,
-                    connector_area.y + connector_area.height / 2,
+                    connector_area.y + 1,
                     connector_area.width,
                     1,
                 ),
@@ -195,30 +195,44 @@ fn render_node(
     let state_style = state_style(capability.display, palette);
     let label_width = usize::from(area.width.saturating_sub(if selected { 4 } else { 1 }));
     let label = truncate(&capability.map_label().to_uppercase(), label_width.max(1));
-    let lines = vec![
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", capability.display.glyph()),
-                state_style.add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(label, Style::default().fg(palette.text).bold()),
-        ]),
-        Line::from(Span::styled(capability.display.label(), state_style)),
-        Line::from(Span::styled(
-            "◇ ACCEPTED",
-            Style::default().fg(palette.muted),
-        )),
-    ];
-    let mut paragraph = Paragraph::new(lines);
-    if selected {
-        paragraph = paragraph.block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(palette.hot))
-                .style(Style::default().bg(palette.panel)),
-        );
+    let lines = vec![Line::from(vec![
+        Span::styled(
+            format!("{} ", capability.display.glyph()),
+            state_style.add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(label, Style::default().fg(palette.text).bold()),
+    ])];
+    let mut lines = lines;
+    if capability.display == DisplayState::BuiltUnproven {
+        lines.extend([
+            Line::from(Span::styled("BUILT /", state_style)),
+            Line::from(Span::styled("UNPROVEN", state_style)),
+        ]);
+    } else {
+        lines.push(Line::from(Span::styled(
+            capability.display.label(),
+            state_style,
+        )));
     }
-    frame.render_widget(paragraph, area);
+    if selected {
+        frame.render_widget(
+            Paragraph::new(lines).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(palette.hot))
+                    .style(Style::default().bg(palette.panel)),
+            ),
+            area,
+        );
+    } else {
+        let content = Rect::new(
+            area.x,
+            area.y.saturating_add(1),
+            area.width,
+            area.height.saturating_sub(1),
+        );
+        frame.render_widget(Paragraph::new(lines), content);
+    }
 }
 
 fn render_supporting(

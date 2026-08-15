@@ -9,10 +9,10 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │PROMISE                                                                                           │
 │“Save a recipe and find it again tomorrow.”                                                       │
 │                                                                                                  │
-│✓ ADD                     ◐ SAVE                    ┌──────────────────┐      ? FIND              │
-│PROVEN                    BUILT / UNPROVEN          │╳ REOPEN          │      UNKNOWN             │
-│◇ ACCEPTED          ━━━━━━◇ ACCEPTED          ━━╸   │MISSING           │ ┄┄┄  ◇ ACCEPTED          │
-│                                                    │◇ ACCEPTED        │                          │
+│                                                    ┌──────────────────┐                          │
+│✓ ADD               ━━━━━━◐ SAVE              ━━╸   │╳ REOPEN          │ ┄┄┄  ? FIND              │
+│PROVEN                    BUILT /                   │MISSING           │      UNKNOWN             │
+│                          UNPROVEN                  │                  │                          │
 │                                                    └──────────────────┘                          │
 │                            └──── ✓ LOCAL DATABASE  SUPPORTING                                    │
 │                                                                                                  │
