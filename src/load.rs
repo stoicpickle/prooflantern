@@ -10,6 +10,7 @@ const DEMO_OBSERVATIONS_JSON: &str =
 pub enum LoadError {
     MissingProject {
         path: String,
+        project_root: String,
     },
     Read {
         path: String,
@@ -27,9 +28,9 @@ pub enum LoadError {
 impl fmt::Display for LoadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingProject { path } => write!(
+            Self::MissingProject { path, project_root } => write!(
                 formatter,
-                "no Proof Lantern project found at {path}\nTry `proof-lantern demo` to explore the built-in example, or create {path} for this project."
+                "no Proof Lantern map found at {path}\nFrom the project directory ({project_root}), run `proof-lantern init .`; or try `proof-lantern demo` to explore the built-in example."
             ),
             Self::Read { path, source } => write!(formatter, "could not read {path}: {source}"),
             Self::ProjectYaml(source) => write!(formatter, "invalid project YAML: {source}"),
@@ -65,7 +66,7 @@ pub fn load_project(root: impl AsRef<Path>) -> Result<(ProjectSpec, ObservationS
     let config = root.join(".proof-lantern");
     let project_path = config.join("project.yml");
     let observations_path = config.join("observations.json");
-    let project_text = read_project(&project_path)?;
+    let project_text = read_project(&project_path, root)?;
     let project = parse_project(&project_text)?;
     let observations = match fs::read_to_string(&observations_path) {
         Ok(text) => parse_observations(&text)?,
@@ -177,12 +178,13 @@ fn validate_fact_location(
     Ok(())
 }
 
-fn read_project(path: &Path) -> Result<String, LoadError> {
+fn read_project(path: &Path, project_root: &Path) -> Result<String, LoadError> {
     match fs::read_to_string(path) {
         Ok(text) => Ok(text),
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
             Err(LoadError::MissingProject {
                 path: path.display().to_string(),
+                project_root: project_root.display().to_string(),
             })
         }
         Err(source) => Err(LoadError::Read {

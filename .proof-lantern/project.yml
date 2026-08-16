@@ -55,6 +55,14 @@ capabilities:
       supports: render-journey
     proof_needed: Exercise real q and Ctrl-C exits, returned error, and panic in a PTY and confirm the alternate screen and cursor are restored.
 
+  - id: starter-map
+    label: Create a beginner-safe starter map
+    map_label: Starter map
+    role:
+      kind: supporting
+      supports: load-project
+    proof_needed: Initialize an empty project, load the generated map, confirm every placeholder is unknown, and refuse a second initialization without changing the file.
+
   - id: refresh-evidence
     label: Refresh repository evidence
     map_label: Refresh

@@ -22,6 +22,11 @@ pub struct Cli {
 pub enum Command {
     /// Open the built-in Recipe Box prototype.
     Demo,
+    /// Create a commented starter map without overwriting existing work.
+    Init {
+        #[arg(value_name = "PATH", default_value = ".")]
+        path: PathBuf,
+    },
     /// Print the deterministic current focus without opening the TUI.
     Next {
         #[arg(value_name = "PATH", default_value = ".")]
@@ -40,6 +45,7 @@ pub enum Command {
 pub enum Invocation {
     Project(PathBuf),
     Demo,
+    Init(PathBuf),
     Next(PathBuf),
     Explain { node: String, path: PathBuf },
 }
@@ -48,6 +54,7 @@ impl Cli {
     pub fn invocation(self) -> Invocation {
         match (self.command, self.path) {
             (Some(Command::Demo), _) => Invocation::Demo,
+            (Some(Command::Init { path }), _) => Invocation::Init(path),
             (Some(Command::Next { path }), _) => Invocation::Next(path),
             (Some(Command::Explain { node, path }), _) => Invocation::Explain { node, path },
             (None, path) => Invocation::Project(path.unwrap_or_else(|| ".".into())),
@@ -70,6 +77,12 @@ mod tests {
                 .unwrap()
                 .invocation(),
             Invocation::Demo
+        );
+        assert_eq!(
+            Cli::try_parse_from(["proof-lantern", "init", "my-project"])
+                .unwrap()
+                .invocation(),
+            Invocation::Init("my-project".into())
         );
         assert_eq!(
             Cli::try_parse_from(["proof-lantern", "next", "fixtures/recipe_box"])

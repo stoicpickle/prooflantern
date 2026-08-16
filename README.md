@@ -1,26 +1,82 @@
 # Proof Lantern
 
-Proof Lantern is a local-first terminal prototype that shows what a project's
-core user journey has accepted, built, proven, left missing, or not yet
-understood. It then names one deterministic current focus and gives an honest,
-state-sensitive explanation of what to check next.
+[![CI](https://github.com/stoicpickle/prooflantern/actions/workflows/ci.yml/badge.svg)](https://github.com/stoicpickle/prooflantern/actions/workflows/ci.yml)
+
+Proof Lantern is an experimental, local-first terminal tool that shows what a
+project has decided to build, what appears to exist, what has actually been
+proven, and what still breaks the core user journey. It then names one honest
+current focus and explains what evidence would move the project forward.
 
 ![Proof Lantern mapping itself](proof/proof-lantern-self-100x30.png)
 
-## Try the prototype
+## Start here
 
-Run Proof Lantern in this checkout to open its evidence-backed self-map:
+You need [Rust](https://www.rust-lang.org/tools/install) 1.88 or newer and a
+terminal at least 100 columns by 30 rows.
 
-```sh
-cargo run
-```
-
-The built-in Recipe Box fixture remains a compact demonstration of missing,
-unknown, built, and proven states:
+To try the built-in Recipe Box example without creating any files:
 
 ```sh
+git clone https://github.com/stoicpickle/prooflantern.git
+cd prooflantern
 cargo run -- demo
 ```
+
+To install the `proof-lantern` command from this checkout:
+
+```sh
+cargo install --locked --path .
+proof-lantern demo
+```
+
+You can also install it without keeping a clone:
+
+```sh
+cargo install --locked --git https://github.com/stoicpickle/prooflantern.git
+```
+
+The demo is synthetic and is always labeled that way. It is designed to show
+the visual language before you make a map for your own project.
+
+## Map your own project
+
+After installing the command above, open the folder containing your own project
+and run:
+
+```sh
+proof-lantern init .
+```
+
+This creates one commented file at `.proof-lantern/project.yml`. It never
+overwrites an existing map. Open the file and replace its promise and three
+starter capabilities with the shortest journey your user needs to complete,
+then run:
+
+```sh
+proof-lantern .
+```
+
+New capabilities begin as `UNKNOWN`. That does not mean they are broken. It
+means you have recorded your intention but have not yet recorded technical
+evidence. Start with roughly three to five core capabilities; Proof Lantern is
+most useful when the map stays focused on the central experience.
+
+See [Writing a project map](docs/PROJECT_FORMAT.md) for copyable evidence,
+supporting-capability, and optional-capability examples.
+
+## Read the map
+
+| State | Meaning |
+| --- | --- |
+| `✓ PROVEN` | Current recorded proof says the capability works. |
+| `◐ BUILT / UNPROVEN` | Implementation appears to exist, but no passing proof is current. |
+| `╳ MISSING` | Explicit current evidence says required implementation is absent. |
+| `! PROOF FAILED` | A current recorded check failed. |
+| `? UNKNOWN` | No current technical evidence establishes whether it exists or works. |
+| `⚠ CONFLICTING` | Current evidence disagrees, so Proof Lantern refuses to guess. |
+
+Missing evidence produces `UNKNOWN`, never `MISSING`. Code existing is not the
+same as behavior being proven.
 
 Inside the TUI:
 
@@ -32,18 +88,11 @@ Inside the TUI:
 Plain terminal commands expose the same evaluated model:
 
 ```sh
-cargo run -- next .
-cargo run -- explain report-keystone .
-cargo run -- next fixtures/recipe_box
-cargo run -- explain save fixtures/recipe_box
+proof-lantern next .
+proof-lantern explain capability-id .
 ```
 
-To open another authored project, pass its root directory. If it does not yet
-contain `.proof-lantern/project.yml`, Proof Lantern explains the expected path
-and points to the built-in demo without creating or overwriting anything.
-
-The TUI requires at least 100×30 cells. At 128×36 and above, the inspector
-remains visible beside the journey.
+At 128×36 and above, the inspector remains visible beside the journey.
 
 ## Evidence boundary
 
@@ -54,51 +103,24 @@ Proof Lantern deliberately separates authority:
   evidence.
 - `.proof-lantern/observations.json` is replaceable machine evidence. Static
   scans may establish only that implementation appears present. Imported test
-  results may record passing or failing verification. In this pre-release v1
-  schema, every machine observation must declare a syntactically valid,
-  project-relative evidence location.
+  results may record passing or failing verification.
 - Display states and the current focus are derived. They are never stored as
   editable progress labels.
 
-When a project is loaded from disk, every current evidence location is resolved
-against that project root. Missing files, directory targets, symlinks that
-escape the root, unreadable line citations, and line ranges beyond the end of a
-file are rejected before they can support `PROVEN`. Stale historical evidence
-may keep a location whose old source no longer exists. Proof Lantern validates
-inspectability, not whether the cited text semantically proves its summary.
+Current file evidence must resolve inside the project root and cite real,
+readable lines. Stale historical evidence remains visible without counting as
+current proof. Proof Lantern validates whether a citation can be inspected; it
+cannot decide whether the cited text truly proves its summary.
 
-Missing machine evidence produces `UNKNOWN`, not `MISSING`. Conflicting current
-evidence remains visibly `CONFLICTING` rather than being guessed away.
-Only explicit current absence produces a `JOURNEY BREAK`; unproven, unknown,
-failed, and conflicting states receive their own narrower focus language. A
-fully proven core journey is reported positively as `CORE JOURNEY PROVEN`.
+## Prototype scope
 
-## What this prototype proves
+This public preview proves that a small accepted journey can be rendered,
+inspected, and prioritized without turning source files into fake progress. It
+also exercises real `q`, Ctrl-C, error, and panic terminal restoration paths.
 
-- A four-node accepted journey and one supporting branch remain readable at
-  100×30 and 140×40.
-- Proof Lantern can load and render its own five-node journey from real local
-  source and test evidence.
-- A missing core capability physically interrupts the path.
-- The inspector shows `WHY`, `EVIDENCE`, and `PROOF NEEDED`.
-- Current-focus selection is deterministic and excludes supporting and optional
-  capabilities.
-- Real `q` and Ctrl-C exits, returned errors, and panics restore the terminal in
-  PTY tests.
-- The built-in demo is embedded in the executable rather than loaded from its
-  build directory at runtime.
-
-It does not yet generate journeys, refresh repository evidence, execute project
-code, or edit project intent. The Recipe Box evidence is synthetic. In a source
-checkout its paths point to fixture source and recorded artifacts; a standalone
-binary labels it `Synthetic Demo` because those paths are bundled provenance,
-not navigable files in the user's project.
-
-For the first private dogfood, prepare maps with roughly three to five accepted
-core capabilities in one linear journey. That is a facilitation constraint, not
-a schema restriction. Larger or dependency-shaped maps may load, but this
-prototype still renders core capabilities as one ordered line; branching journey
-visualization remains future work.
+It does not yet generate journeys, scan repositories, refresh evidence, execute
+project code, or edit intent inside the TUI. Core capabilities are rendered as
+one ordered line; dependency-shaped journey visualization remains future work.
 
 ## Development
 
@@ -110,20 +132,15 @@ git diff --check
 ```
 
 Rendered proof is generated through the same Ratatui `TestBackend` used by the
-snapshot tests:
-
-```sh
-cargo run --example render_proof -- proof/recipe-box-100x30.svg 100 30 reopen
-cargo run --example render_proof -- proof/recipe-box-save-140x40.svg 140 40 save
-cargo run --example render_proof -- proof/proof-lantern-self-100x30.svg 100 30 report-keystone closed .
-```
+snapshot tests. See [proof/README.md](proof/README.md) for the commands.
 
 The original product kickoff remains in
-`BUILD_MAP_CODEX_KICKOFF.md`; “build map” is now the generic visualization,
-while Proof Lantern is the product name.
+[`BUILD_MAP_CODEX_KICKOFF.md`](BUILD_MAP_CODEX_KICKOFF.md); “build map” is the
+generic visualization, while Proof Lantern is the product name.
+
+Contributions are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-Proof Lantern is available under either the
-[MIT License](LICENSE-MIT) or the [Apache License 2.0](LICENSE-APACHE), at your
-option.
+Proof Lantern is available under either the [MIT License](LICENSE-MIT) or the
+[Apache License 2.0](LICENSE-APACHE), at your option.
