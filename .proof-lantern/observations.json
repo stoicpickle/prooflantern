@@ -10,8 +10,8 @@
         "summary": "The loader reads strict project YAML and optional machine observations from the repository-local directory.",
         "location": {
           "path": "src/load.rs",
-          "line_start": 63,
-          "line_end": 84
+          "line_start": 64,
+          "line_end": 85
         }
       }
     },
@@ -150,8 +150,8 @@
         "summary": "The TUI runs inside Ratatui's managed terminal lifecycle for normal, error, and panic paths.",
         "location": {
           "path": "src/main.rs",
-          "line_start": 51,
-          "line_end": 85
+          "line_start": 76,
+          "line_end": 102
         }
       }
     },
@@ -166,6 +166,34 @@
           "path": "tests/terminal_restoration.rs",
           "line_start": 42,
           "line_end": 214
+        }
+      }
+    },
+    {
+      "capability_id": "starter-map",
+      "source": "static_scan",
+      "fact": {
+        "claim": "implementation_present",
+        "freshness": "current",
+        "summary": "The initializer derives a project name, contains its config directory inside the project root, and writes a commented three-step starter through an exclusive create-new path.",
+        "location": {
+          "path": "src/init.rs",
+          "line_start": 63,
+          "line_end": 183
+        }
+      }
+    },
+    {
+      "capability_id": "starter-map",
+      "source": "imported_test_result",
+      "fact": {
+        "claim": "verification_passed",
+        "freshness": "current",
+        "summary": "On 2026-08-16, subprocess tests proved that init creates a loadable all-unknown starter without machine evidence, preserves an existing map, and rejects an escaping config symlink.",
+        "location": {
+          "path": "tests/init_command.rs",
+          "line_start": 45,
+          "line_end": 124
         }
       }
     }

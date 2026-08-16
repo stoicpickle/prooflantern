@@ -24,16 +24,31 @@ fn missing_project_config_points_beginners_to_the_demo_and_expected_path() {
         .display()
         .to_string();
     assert!(
-        stderr.contains(&format!(
-            "no Proof Lantern project found at {expected_path}"
-        )),
+        stderr.contains(&format!("no Proof Lantern map found at {expected_path}")),
         "{stderr}"
     );
+    assert!(stderr.contains("`proof-lantern init .`"), "{stderr}");
     assert!(stderr.contains("`proof-lantern demo`"), "{stderr}");
-    assert!(
-        stderr.contains(&format!("create {expected_path} for this project")),
-        "{stderr}"
-    );
     assert!(!root.join(".proof-lantern").exists());
-    fs::remove_dir(&root).expect("isolated test directory should be removed");
+
+    let explicit_root = root.join("another project");
+    fs::create_dir(&explicit_root).expect("explicit project directory should be created");
+    let explicit = Command::new(env!("CARGO_BIN_EXE_proof-lantern"))
+        .arg(&explicit_root)
+        .output()
+        .expect("Proof Lantern should launch for an explicit path");
+    assert!(!explicit.status.success());
+    let explicit_stderr =
+        String::from_utf8(explicit.stderr).expect("explicit-path error should be UTF-8");
+    assert!(
+        explicit_stderr.contains(&format!("project directory ({})", explicit_root.display())),
+        "{explicit_stderr}"
+    );
+    assert!(
+        explicit_stderr.contains("`proof-lantern init .`"),
+        "{explicit_stderr}"
+    );
+    assert!(!explicit_root.join(".proof-lantern").exists());
+
+    fs::remove_dir_all(&root).expect("isolated test directory should be removed");
 }

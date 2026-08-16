@@ -13,7 +13,7 @@ use clap::Parser;
 use proof_lantern::{
     App, CurrentFocus, EvaluatedProject, EvidenceSource, Freshness,
     cli::{Cli, Invocation},
-    evaluate, load_demo, load_project,
+    evaluate, initialize_project, load_demo, load_project,
 };
 
 #[cfg(feature = "terminal-test-hooks")]
@@ -37,6 +37,23 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let invocation = Cli::parse().invocation();
     match invocation {
+        Invocation::Init(path) => {
+            let initialized = initialize_project(&path)?;
+            println!("Created {}", initialized.project_file.display());
+            println!();
+            println!("Next:");
+            println!("  1. Open that file and replace the starter promise and capabilities.");
+            println!("  2. From that project folder, run `proof-lantern .` to view the map.");
+            println!("  3. Run `proof-lantern demo` to compare it with an evidence-rich example.");
+            println!();
+            println!(
+                "Seeing UNKNOWN at first is expected: intent exists, but evidence has not been recorded yet."
+            );
+            println!(
+                "Guide: https://github.com/stoicpickle/prooflantern/blob/main/docs/PROJECT_FORMAT.md"
+            );
+            return Ok(());
+        }
         Invocation::Next(path) => {
             print_next(&load_root(path)?)?;
             return Ok(());
@@ -54,7 +71,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             evaluate(spec, observations)?
         }
         Invocation::Project(path) => load_root(path)?,
-        Invocation::Next(_) | Invocation::Explain { .. } => unreachable!(),
+        Invocation::Init(_) | Invocation::Next(_) | Invocation::Explain { .. } => unreachable!(),
     };
     let interrupted = Arc::new(AtomicBool::new(false));
     let signal_flag = Arc::clone(&interrupted);
