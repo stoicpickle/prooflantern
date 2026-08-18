@@ -299,7 +299,10 @@ fn write_manual_evidence(
 
 #[cfg(unix)]
 fn sync_directory(config: &cap_std::fs::Dir) -> io::Result<()> {
-    config.try_clone()?.into_std_file().sync_all()
+    // `Dir` uses an `O_PATH` descriptor on Linux, which cannot be synced.
+    // Reopen the already-pinned directory through the capability so the
+    // descriptor is readable without resolving an ambient filesystem path.
+    config.open(".")?.sync_all()
 }
 
 #[cfg(not(unix))]
