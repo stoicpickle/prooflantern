@@ -2,12 +2,15 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use proof_lantern::{CurrentFocus, DisplayState, FocusKind, evaluate, load_project};
 
 struct TempProject(PathBuf);
+
+static NEXT_PROJECT_ID: AtomicU64 = AtomicU64::new(0);
 
 impl TempProject {
     fn new() -> Self {
@@ -16,8 +19,9 @@ impl TempProject {
             .expect("system clock should follow the Unix epoch")
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "proof-lantern-init-test-{}-{nonce}",
-            std::process::id()
+            "proof-lantern-init-test-{}-{nonce}-{}",
+            std::process::id(),
+            NEXT_PROJECT_ID.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).expect("isolated project directory should be created");
         Self(root)
@@ -100,6 +104,21 @@ fn init_refuses_to_overwrite_an_existing_map() {
     assert_eq!(
         fs::read(project_file).expect("existing map should remain readable"),
         before
+    );
+}
+
+#[test]
+fn init_identifies_a_non_directory_config_path() {
+    let project = TempProject::new();
+    fs::write(project.root().join(".proof-lantern"), "not a directory")
+        .expect("test config file should be created");
+
+    let output = run_init(project.root());
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("error should be UTF-8");
+    assert!(
+        stderr.contains("the .proof-lantern path is not a directory"),
+        "{stderr}"
     );
 }
 

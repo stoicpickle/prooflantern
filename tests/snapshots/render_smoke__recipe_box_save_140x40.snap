@@ -12,29 +12,29 @@ expression: "render_screen(140, 40, false, \"save\")"
 │                         ┌──────────────────┐                                                  ││WHY                                      │
 │✓ ADD              ━━━━━━│◐ SAVE            │━━╸   ╳ REOPEN            ┄┄┄  ? FIND             ││Implementation evidence exists, but no   │
 │PROVEN                   │BUILT /           │      MISSING                  UNKNOWN            ││current passing proof is recorded.       │
-│                         │UNPROVEN          │                                                  ││                                         │
-│                         └──────────────────┘                                                  ││EVIDENCE                                 │
-│                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││STATIC SCAN  Local save code appears to  │
-│                                                                                               ││exist.                                   │
+│                         │UNPROVEN          │                                                  ││EVIDENCE                                 │
+│                         └──────────────────┘                                                  ││STATIC SCAN  Local save code appears to  │
+│                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││exist.                                   │
 │                                                                                               ││src/storage.rs:1-8                       │
+│                                                                                               ││                                         │
 │OPTIONAL  ? SHARE                                                                              ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
+│                                                                                               ││                                         │
 │                                                                                               ││PROOF NEEDED                             │
-│                                                                                               ││Save a recipe, close the app, and confirm│
-│                                                                                               ││the record persists.                     │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│┌ JOURNEY BREAK ──────────────────────────────────────────────────────────────────────────────┐││                                         │
-││╳ REOPEN SAVED RECIPES                                                                       │││                                         │
+│┌ JOURNEY BREAK ──────────────────────────────────────────────────────────────────────────────┐││Save a recipe, close the app, and confirm│
+││╳ REOPEN SAVED RECIPES                                                                       │││the record persists.                     │
 ││Required implementation is recorded absent. Downstream unresolved: Find a saved recipe.      │││                                         │
 ││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                    │││                                         │
 │└─────────────────────────────────────────────────────────────────────────────────────────────┘││                                         │

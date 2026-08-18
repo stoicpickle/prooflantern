@@ -5,6 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use cap_std::fs::OpenOptions;
+
+use crate::project_fs::{CONFIG_DIR, ProjectDirectory};
+
 #[derive(Debug)]
 pub enum InitError {
     Root { path: String, source: io::Error },
@@ -24,7 +28,10 @@ impl fmt::Display for InitError {
                 )
             }
             Self::NotDirectory { path } => {
-                write!(formatter, "project path is not a directory: {path}")
+                write!(
+                    formatter,
+                    "the .proof-lantern path is not a directory: {path}"
+                )
             }
             Self::ConfigOutsideRoot { path } => write!(
                 formatter,
@@ -62,45 +69,44 @@ pub struct InitializedProject {
 
 pub fn initialize_project(root: impl AsRef<Path>) -> Result<InitializedProject, InitError> {
     let root = root.as_ref();
-    let canonical_root = fs::canonicalize(root).map_err(|source| InitError::Root {
+    let project = ProjectDirectory::open(root).map_err(|source| InitError::Root {
         path: root.display().to_string(),
         source,
     })?;
-    if !canonical_root.is_dir() {
-        return Err(InitError::NotDirectory {
-            path: root.display().to_string(),
-        });
+    let unresolved_config_dir = project.config_path();
+    match project.root.create_dir(CONFIG_DIR) {
+        Ok(()) => {}
+        Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(source) => {
+            return Err(InitError::Write {
+                path: unresolved_config_dir.display().to_string(),
+                source,
+            });
+        }
     }
-
-    let unresolved_config_dir = canonical_root.join(".proof-lantern");
-    fs::create_dir_all(&unresolved_config_dir).map_err(|source| InitError::Write {
-        path: unresolved_config_dir.display().to_string(),
-        source,
+    let config_dir = project.open_config().map_err(|source| {
+        if fs::canonicalize(&unresolved_config_dir)
+            .is_ok_and(|resolved| !resolved.starts_with(&project.canonical_root))
+        {
+            InitError::ConfigOutsideRoot {
+                path: unresolved_config_dir.display().to_string(),
+            }
+        } else if source.kind() == io::ErrorKind::NotADirectory {
+            InitError::NotDirectory {
+                path: unresolved_config_dir.display().to_string(),
+            }
+        } else {
+            InitError::Write {
+                path: unresolved_config_dir.display().to_string(),
+                source,
+            }
+        }
     })?;
-    let config_dir =
-        fs::canonicalize(&unresolved_config_dir).map_err(|source| InitError::Write {
-            path: unresolved_config_dir.display().to_string(),
-            source,
-        })?;
-    if !config_dir.starts_with(&canonical_root) {
-        return Err(InitError::ConfigOutsideRoot {
-            path: unresolved_config_dir.display().to_string(),
-        });
-    }
-    if !config_dir.is_dir() {
-        return Err(InitError::NotDirectory {
-            path: unresolved_config_dir.display().to_string(),
-        });
-    }
 
-    let project_file = config_dir.join("project.yml");
-    if project_file.exists() {
-        return Err(InitError::AlreadyExists {
-            path: project_file.display().to_string(),
-        });
-    }
+    let project_file = unresolved_config_dir.join("project.yml");
 
-    let project_name = canonical_root
+    let project_name = project
+        .canonical_root
         .file_name()
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
@@ -109,10 +115,11 @@ pub fn initialize_project(root: impl AsRef<Path>) -> Result<InitializedProject, 
         .expect("serializing a project directory name cannot fail");
     let template = starter_template(&project_name);
 
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&project_file)
+    let mut file = config_dir
+        .open_with(
+            "project.yml",
+            OpenOptions::new().write(true).create_new(true),
+        )
         .map_err(|source| {
             if source.kind() == io::ErrorKind::AlreadyExists {
                 InitError::AlreadyExists {
@@ -127,7 +134,7 @@ pub fn initialize_project(root: impl AsRef<Path>) -> Result<InitializedProject, 
         })?;
     if let Err(source) = file.write_all(template.as_bytes()) {
         drop(file);
-        let _ = fs::remove_file(&project_file);
+        let _ = config_dir.remove_file("project.yml");
         return Err(InitError::Write {
             path: project_file.display().to_string(),
             source,
@@ -146,7 +153,8 @@ fn starter_template(project_name: &str) -> String {
 # `proof_needed` should describe something a person or test can actually observe.
 #
 # New capabilities begin UNKNOWN. That is honest: this file records what you
-# intend to build, while evidence of what exists or works is recorded separately.
+# intend to build, while `proof-lantern record` writes what you actually observe
+# to .proof-lantern/manual-evidence.json without rewriting this file.
 
 schema_version: 1
 project:

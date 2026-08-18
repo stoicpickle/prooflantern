@@ -140,5 +140,44 @@ fn a_symlink_cannot_make_current_evidence_escape_the_project_root() {
     project.write_observation("current", "linked.txt", 1);
 
     let message = load_project(project.root()).unwrap_err().to_string();
-    assert!(message.contains("resolved path escapes the project root"));
+    assert!(
+        message.contains("resolve inside the project root"),
+        "{message}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn load_refuses_a_config_directory_symlink_outside_the_project() {
+    use std::os::unix::fs::symlink;
+
+    let project = TestProject::new("config-link-project");
+    let outside = TestProject::new("config-link-outside");
+    fs::remove_dir_all(project.root().join(".proof-lantern"))
+        .expect("project config directory should be removable");
+    symlink(
+        outside.root().join(".proof-lantern"),
+        project.root().join(".proof-lantern"),
+    )
+    .expect("test config symlink should be created");
+
+    assert!(load_project(project.root()).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn load_refuses_a_project_file_symlink_outside_the_config_directory() {
+    use std::os::unix::fs::symlink;
+
+    let project = TestProject::new("project-file-link");
+    let outside = TestProject::new("project-file-outside");
+    let project_file = project.root().join(".proof-lantern/project.yml");
+    fs::remove_file(&project_file).expect("project file should be removable");
+    symlink(
+        outside.root().join(".proof-lantern/project.yml"),
+        &project_file,
+    )
+    .expect("test project file symlink should be created");
+
+    assert!(load_project(project.root()).is_err());
 }
