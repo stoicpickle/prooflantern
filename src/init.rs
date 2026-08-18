@@ -28,7 +28,10 @@ impl fmt::Display for InitError {
                 )
             }
             Self::NotDirectory { path } => {
-                write!(formatter, "project path is not a directory: {path}")
+                write!(
+                    formatter,
+                    "the .proof-lantern path is not a directory: {path}"
+                )
             }
             Self::ConfigOutsideRoot { path } => write!(
                 formatter,

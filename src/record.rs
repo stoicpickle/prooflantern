@@ -179,20 +179,27 @@ impl EvidenceLock {
                 source,
             }
         })?;
-        let lock_path = std::env::temp_dir().join(format!(
-            "proof-lantern-record-{:016x}.lock",
-            stable_path_hash(&project_dir.canonical_root)
-        ));
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
+        let lock_path = project_dir.config_path().join(".record.lock");
+        let config = project_dir
+            .open_config()
             .map_err(|source| RecordError::Lock {
                 path: lock_path.display().to_string(),
                 source,
             })?;
+        let file = config
+            .open_with(
+                ".record.lock",
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false),
+            )
+            .map_err(|source| RecordError::Lock {
+                path: lock_path.display().to_string(),
+                source,
+            })?
+            .into_std();
         FileExt::lock_exclusive(&file).map_err(|source| RecordError::Lock {
             path: lock_path.display().to_string(),
             source,
@@ -205,15 +212,6 @@ impl Drop for EvidenceLock {
     fn drop(&mut self) {
         let _ = FileExt::unlock(&self.0);
     }
-}
-
-fn stable_path_hash(path: &Path) -> u64 {
-    path.as_os_str()
-        .to_string_lossy()
-        .bytes()
-        .fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
-        })
 }
 
 #[cfg(feature = "terminal-test-hooks")]

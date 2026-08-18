@@ -3,3 +3,4 @@
 *.log
 .DS_Store
 /proof/*.svg
+/.proof-lantern/.record.lock

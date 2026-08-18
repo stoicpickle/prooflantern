@@ -64,6 +64,10 @@ fn record_adds_human_evidence_without_rewriting_intent() {
     let stdout = String::from_utf8(output.stdout).expect("output should be UTF-8");
     assert!(stdout.contains("Recorded PROVEN"), "{stdout}");
     assert!(stdout.contains("manual-evidence.json"), "{stdout}");
+    assert!(
+        project.root().join(".proof-lantern/.record.lock").is_file(),
+        "record should keep its coordination lock inside the project boundary"
+    );
     assert_eq!(
         fs::read(&project_file).expect("project intent should remain readable"),
         before,
@@ -76,6 +80,40 @@ fn record_adds_human_evidence_without_rewriting_intent() {
         evaluated.capability("start").unwrap().display,
         DisplayState::Proven
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn record_refuses_a_lock_symlink_that_escapes_the_project() {
+    use std::os::unix::fs::symlink;
+
+    let project = TempProject::new("lock-symlink");
+    let outside = project.root().with_extension("outside-lock");
+    fs::write(&outside, b"outside remains unchanged").expect("outside file should be created");
+    symlink(&outside, project.root().join(".proof-lantern/.record.lock"))
+        .expect("test lock symlink should be created");
+
+    let output = run(
+        &[
+            "record",
+            "start",
+            "passed",
+            "--summary",
+            "This must not follow the lock symlink.",
+        ],
+        project.root(),
+    );
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("error should be UTF-8");
+    assert!(
+        stderr.contains("could not lock manual evidence"),
+        "{stderr}"
+    );
+    assert_eq!(
+        fs::read(&outside).expect("outside file should remain readable"),
+        b"outside remains unchanged"
+    );
+    let _ = fs::remove_file(outside);
 }
 
 #[test]

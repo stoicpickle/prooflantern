@@ -35,7 +35,7 @@ Users who do not want to override an operating-system warning can continue to
 build the locked source release:
 
 ```sh
-cargo install --locked --git https://github.com/stoicpickle/prooflantern.git
+cargo install --locked --git https://github.com/stoicpickle/prooflantern.git --tag v<release-version>
 ```
 
 Platform signing can be added later if maintainers intentionally acquire and

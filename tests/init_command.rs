@@ -107,6 +107,21 @@ fn init_refuses_to_overwrite_an_existing_map() {
     );
 }
 
+#[test]
+fn init_identifies_a_non_directory_config_path() {
+    let project = TempProject::new();
+    fs::write(project.root().join(".proof-lantern"), "not a directory")
+        .expect("test config file should be created");
+
+    let output = run_init(project.root());
+    assert!(!output.status.success());
+    let stderr = String::from_utf8(output.stderr).expect("error should be UTF-8");
+    assert!(
+        stderr.contains("the .proof-lantern path is not a directory"),
+        "{stderr}"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn init_refuses_a_config_symlink_that_escapes_the_project() {
