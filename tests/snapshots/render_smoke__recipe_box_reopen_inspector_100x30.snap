@@ -25,9 +25,9 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │                                                                                                  │
 │EVIDENCE                                                                                          │
 │HUMAN  The builder confirmed that no reopen flow has been implemented.                            │
-│                                                                                                  │
 │PROOF NEEDED                                                                                      │
 │Close app, reopen it, and confirm the saved recipe appears.                                       │
+│                                                                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
 │←→ NODE   E CLOSE   G FOCUS   Q EXIT                                                              │

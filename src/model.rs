@@ -55,12 +55,45 @@ impl CapabilityRole {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ObservationSet {
     pub schema_version: u32,
     #[serde(default)]
     pub observations: Vec<MachineObservation>,
+}
+
+impl Default for ObservationSet {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            observations: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ManualEvidenceSet {
+    pub schema_version: u32,
+    #[serde(default)]
+    pub records: Vec<ManualEvidenceRecord>,
+}
+
+impl Default for ManualEvidenceSet {
+    fn default() -> Self {
+        Self {
+            schema_version: 1,
+            records: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ManualEvidenceRecord {
+    pub capability_id: String,
+    pub fact: EvidenceFact,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

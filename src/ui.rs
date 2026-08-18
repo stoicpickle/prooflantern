@@ -459,49 +459,75 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         );
         return;
     };
-    let width = usize::from(area.width.saturating_sub(4)).max(1);
-    let mut lines = vec![
-        Line::from(vec![
-            Span::styled(
-                format!("{} ", capability.display.glyph()),
-                state_style(capability.display, palette).bold(),
-            ),
-            Span::styled(
-                truncate(
-                    &capability.intent.label.to_uppercase(),
-                    width.saturating_sub(2),
+    let block = instrument_block(" INSPECTOR ", palette.primary, palette.panel);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+    let width = usize::from(inner.width).max(1);
+    let proof_height = if inner.width < 60 { 6 } else { 3 }.min(inner.height);
+    let rows = Layout::vertical([
+        Constraint::Length(3),
+        Constraint::Length(3),
+        Constraint::Min(2),
+        Constraint::Length(proof_height),
+    ])
+    .split(inner);
+
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(vec![
+                Span::styled(
+                    format!("{} ", capability.display.glyph()),
+                    state_style(capability.display, palette).bold(),
                 ),
-                Style::default().fg(palette.text).bold(),
-            ),
+                Span::styled(
+                    truncate(
+                        &capability.intent.label.to_uppercase(),
+                        width.saturating_sub(2),
+                    ),
+                    Style::default().fg(palette.text).bold(),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(
+                    capability.display.label(),
+                    state_style(capability.display, palette),
+                ),
+                Span::styled("   ◇ ACCEPTED", Style::default().fg(palette.muted)),
+            ]),
+            Line::default(),
         ]),
-        Line::from(vec![
-            Span::styled(
-                capability.display.label(),
-                state_style(capability.display, palette),
-            ),
-            Span::styled("   ◇ ACCEPTED", Style::default().fg(palette.muted)),
-        ]),
-        Line::default(),
-        heading("WHY", palette),
-        Line::from(Span::styled(
-            capability.why(),
-            Style::default().fg(palette.text),
-        )),
-        Line::default(),
-        heading("EVIDENCE", palette),
-    ];
+        rows[0],
+    );
+    frame.render_widget(
+        Paragraph::new(vec![
+            heading("WHY", palette),
+            Line::from(Span::styled(
+                capability.why(),
+                Style::default().fg(palette.text),
+            )),
+        ])
+        .wrap(Wrap { trim: true }),
+        rows[1],
+    );
+
+    let mut evidence = vec![heading("EVIDENCE", palette)];
+    let available = usize::from(rows[2].height.saturating_sub(1));
     if capability.reasons.is_empty() {
-        lines.push(Line::from(Span::styled(
+        evidence.push(Line::from(Span::styled(
             "No current evidence recorded.",
             Style::default().fg(palette.muted),
         )));
-    } else {
-        let visible_reasons = if capability.reasons.len() > 3 {
-            2
-        } else {
-            capability.reasons.len()
-        };
-        for reason in capability.reasons.iter().take(visible_reasons) {
+    } else if available > 0 {
+        let detailed = rows[2].width < 60;
+        let rows_per_reason = if detailed { 2 } else { 1 };
+        let visible_reasons = capability
+            .reasons
+            .len()
+            .min((available / rows_per_reason).max(1));
+        for (index, reason) in capability.reasons.iter().take(visible_reasons).enumerate() {
             let source = match reason.source {
                 EvidenceSource::Human => "HUMAN",
                 EvidenceSource::StaticScan => "STATIC SCAN",
@@ -512,51 +538,65 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
             } else {
                 ""
             };
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{source}{freshness}  "),
-                    Style::default().fg(palette.primary),
-                ),
-                Span::styled(&reason.fact.summary, Style::default().fg(palette.text)),
-            ]));
-            if let Some(location) = &reason.fact.location {
+            let location = if let Some(location) = &reason.fact.location {
                 let suffix = match (location.line_start, location.line_end) {
                     (Some(start), Some(end)) => format!(":{start}-{end}"),
                     _ => String::new(),
                 };
-                lines.push(Line::from(Span::styled(
-                    middle_truncate(&format!("{}{suffix}", location.path), width),
-                    Style::default().fg(palette.muted),
+                format!("  {}{suffix}", location.path)
+            } else {
+                String::new()
+            };
+            let remaining = capability.reasons.len() - visible_reasons;
+            let more = if index + 1 == visible_reasons && remaining > 0 {
+                format!("  (+{remaining} more)")
+            } else {
+                String::new()
+            };
+            if detailed {
+                evidence.push(Line::from(vec![
+                    Span::styled(
+                        format!("{source}{freshness}  "),
+                        Style::default().fg(palette.primary),
+                    ),
+                    Span::styled(&reason.fact.summary, Style::default().fg(palette.text)),
+                ]));
+                if !location.is_empty() {
+                    evidence.push(Line::from(Span::styled(
+                        middle_truncate(location.trim(), width),
+                        Style::default().fg(palette.muted),
+                    )));
+                }
+                if !more.is_empty() {
+                    evidence.push(Line::from(Span::styled(
+                        more.trim().to_owned(),
+                        Style::default().fg(palette.muted),
+                    )));
+                }
+            } else {
+                let line = format!(
+                    "{source}{freshness}  {}{location}{more}",
+                    reason.fact.summary
+                );
+                evidence.push(Line::from(Span::styled(
+                    middle_truncate(&line, width),
+                    Style::default().fg(palette.text),
                 )));
             }
         }
-        if capability.reasons.len() > visible_reasons {
-            lines.push(Line::from(Span::styled(
-                format!(
-                    "… {} more evidence facts",
-                    capability.reasons.len() - visible_reasons
-                ),
-                Style::default().fg(palette.muted),
-            )));
-        }
     }
-    lines.extend([
-        Line::default(),
-        heading("PROOF NEEDED", palette),
-        Line::from(Span::styled(
-            &capability.intent.proof_needed,
-            Style::default().fg(palette.text),
-        )),
-    ]);
+    frame.render_widget(Paragraph::new(evidence).wrap(Wrap { trim: true }), rows[2]);
     frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: true })
-            .block(instrument_block(
-                " INSPECTOR ",
-                palette.primary,
-                palette.panel,
+        Paragraph::new(vec![
+            heading("PROOF NEEDED", palette),
+            Line::from(Span::styled(
+                &capability.intent.proof_needed,
+                Style::default().fg(palette.text),
             )),
-        area,
+        ])
+        .wrap(Wrap { trim: true })
+        .style(Style::default().bg(palette.panel)),
+        rows[3],
     );
 }
 

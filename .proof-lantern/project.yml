@@ -63,6 +63,14 @@ capabilities:
       supports: load-project
     proof_needed: Initialize an empty project, load the generated map, confirm every placeholder is unknown, and refuse a second initialization without changing the file.
 
+  - id: record-evidence
+    label: Record human evidence safely
+    map_label: Record evidence
+    role:
+      kind: supporting
+      supports: inspect-evidence
+    proof_needed: Record a passing result, confirm project.yml is unchanged, replace it with a failing result, and retain the earlier result as stale history.
+
   - id: refresh-evidence
     label: Refresh repository evidence
     map_label: Refresh

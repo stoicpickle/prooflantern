@@ -11,8 +11,14 @@ current focus and explains what evidence would move the project forward.
 
 ## Start here
 
-You need [Rust](https://www.rust-lang.org/tools/install) 1.88 or newer and a
-terminal at least 100 columns by 30 rows.
+You need a terminal at least 100 columns by 30 rows. Prebuilt preview archives
+for macOS, Linux, and Windows appear on the
+[Releases page](https://github.com/stoicpickle/prooflantern/releases) when a
+version is tagged. They include checksums and build provenance; see
+[Release integrity](docs/RELEASE_INTEGRITY.md).
+
+To run directly from source instead, install
+[Rust](https://www.rust-lang.org/tools/install) 1.88 or newer.
 
 To try the built-in Recipe Box example without creating any files:
 
@@ -61,6 +67,19 @@ means you have recorded your intention but have not yet recorded technical
 evidence. Start with roughly three to five core capabilities; Proof Lantern is
 most useful when the map stays focused on the central experience.
 
+After performing the observable check described by `proof_needed`, record what
+you actually saw:
+
+```sh
+proof-lantern record start passed \
+  --summary "I completed the visible starting step." .
+```
+
+The claim can be `built`, `missing`, `passed`, or `failed`. This command writes
+`.proof-lantern/manual-evidence.json`; it never rewrites your commented
+`project.yml`. When you record a newer result in the same category, the older
+manual result stays visible as `STALE` history rather than being deleted.
+
 See [Writing a project map](docs/PROJECT_FORMAT.md) for copyable evidence,
 supporting-capability, and optional-capability examples.
 
@@ -101,6 +120,9 @@ Proof Lantern deliberately separates authority:
 - `.proof-lantern/project.yml` is human-owned. It contains the promise,
   accepted capabilities, journey order, proof requirements, notes, and manual
   evidence.
+- `.proof-lantern/manual-evidence.json` contains evidence deliberately recorded
+  with the `record` command. It is separate so the command never reformats or
+  removes comments from human-authored intent.
 - `.proof-lantern/observations.json` is replaceable machine evidence. Static
   scans may establish only that implementation appears present. Imported test
   results may record passing or failing verification.
@@ -139,6 +161,8 @@ The original product kickoff remains in
 generic visualization, while Proof Lantern is the product name.
 
 Contributions are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md).
+Maintainers preparing a tagged preview should also read
+[Release integrity](docs/RELEASE_INTEGRITY.md).
 
 ## License
 

@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use proof_lantern::{App, evaluate, load_project, ui};
+use proof_lantern::{
+    App, Claim, EvidenceFact, EvidenceLocation, Freshness, evaluate, load_project, ui,
+};
 use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
@@ -129,6 +131,46 @@ fn compact_inspector_and_wide_layout_expose_only_the_needed_sections() {
         !wide.contains("CONFIDENCE"),
         "confidence score leaked into Proof Lantern: {wide}"
     );
+}
+
+#[test]
+fn compact_inspector_reserves_proof_space_when_evidence_is_long() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+    let (mut spec, observations) = load_project(root).unwrap();
+    let reopen = spec
+        .capabilities
+        .iter_mut()
+        .find(|capability| capability.id == "reopen")
+        .unwrap();
+    for (index, summary) in [
+        "An earlier reopen experiment passed before the storage format changed.",
+        "A second historical check captured a longer evidence trail for review.",
+    ]
+    .into_iter()
+    .enumerate()
+    .rev()
+    {
+        reopen.manual_evidence.insert(
+            0,
+            EvidenceFact {
+                claim: Claim::VerificationPassed,
+                freshness: Freshness::Stale,
+                summary: summary.into(),
+                location: Some(EvidenceLocation {
+                    path: "src/storage.rs".into(),
+                    line_start: Some(index as u32 + 1),
+                    line_end: Some(index as u32 + 2),
+                }),
+            },
+        );
+    }
+    let app = App::new(evaluate(spec, observations).unwrap());
+    let compact = render_app_screen(100, 30, true, "reopen", app);
+
+    assert!(compact.contains("PROOF NEEDED"), "{compact}");
+    assert!(compact.contains("Close app, reopen it"), "{compact}");
+    assert!(compact.contains("src/storage.rs:1-2"), "{compact}");
+    assert!(compact.contains("(+2 more)"), "{compact}");
 }
 
 #[test]

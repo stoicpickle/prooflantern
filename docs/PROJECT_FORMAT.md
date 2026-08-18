@@ -52,8 +52,21 @@ unique, but they do not need to be consecutive.
 
 ## Manual evidence
 
-Evidence changes the displayed state. A human can record a fact directly under
-a capability:
+Evidence changes the displayed state. The easiest way to record a current
+human observation is the command line:
+
+```sh
+proof-lantern record reopen passed \
+  --summary "I closed the app, reopened it, and the saved recipe appeared." .
+```
+
+The claim can be `built`, `missing`, `passed`, or `failed`. Proof Lantern stores
+these explicit observations in `.proof-lantern/manual-evidence.json` without
+rewriting the comments or formatting in `project.yml`. A newer record in the
+same implementation or verification category makes the older command-recorded
+fact `STALE`; it does not erase history.
+
+You can also author a fact directly under a capability in `project.yml`:
 
 ```yaml
     manual_evidence:
@@ -71,7 +84,9 @@ Supported claims are:
 
 Use `freshness: stale` when a fact is historical and should remain visible but
 must not establish the current state. If current facts contradict one another,
-the capability becomes `CONFLICTING`.
+the capability becomes `CONFLICTING`. The `record` command will not silently
+replace project-authored or machine evidence; if a new fact would leave a
+conflict, it asks you to reconcile those current records first.
 
 ## Machine observations
 

@@ -13,7 +13,7 @@ use clap::Parser;
 use proof_lantern::{
     App, CurrentFocus, EvaluatedProject, EvidenceSource, Freshness,
     cli::{Cli, Invocation},
-    evaluate, initialize_project, load_demo, load_project,
+    evaluate, initialize_project, load_demo, load_project, record_manual_evidence,
 };
 
 #[cfg(feature = "terminal-test-hooks")]
@@ -44,7 +44,10 @@ fn run() -> Result<(), Box<dyn Error>> {
             println!("Next:");
             println!("  1. Open that file and replace the starter promise and capabilities.");
             println!("  2. From that project folder, run `proof-lantern .` to view the map.");
-            println!("  3. Run `proof-lantern demo` to compare it with an evidence-rich example.");
+            println!(
+                "  3. After a real check, record what you saw with `proof-lantern record start passed --summary \"what worked\" .`."
+            );
+            println!("  4. Run `proof-lantern demo` to compare it with an evidence-rich example.");
             println!();
             println!(
                 "Seeing UNKNOWN at first is expected: intent exists, but evidence has not been recorded yet."
@@ -62,6 +65,28 @@ fn run() -> Result<(), Box<dyn Error>> {
             print_explanation(&load_root(path)?, &node)?;
             return Ok(());
         }
+        Invocation::Record {
+            node,
+            claim,
+            summary,
+            path,
+        } => {
+            let recorded = record_manual_evidence(&path, &node, claim.into(), &summary)?;
+            println!(
+                "Recorded {} for {} in {}",
+                recorded.display.label(),
+                recorded.capability_label,
+                recorded.evidence_file.display()
+            );
+            if recorded.superseded_records > 0 {
+                println!(
+                    "Kept {} older manual record(s) as STALE history.",
+                    recorded.superseded_records
+                );
+            }
+            println!("Next: proof-lantern next {}", path.display());
+            return Ok(());
+        }
         Invocation::Demo | Invocation::Project(_) => {}
     }
 
@@ -71,7 +96,10 @@ fn run() -> Result<(), Box<dyn Error>> {
             evaluate(spec, observations)?
         }
         Invocation::Project(path) => load_root(path)?,
-        Invocation::Init(_) | Invocation::Next(_) | Invocation::Explain { .. } => unreachable!(),
+        Invocation::Init(_)
+        | Invocation::Next(_)
+        | Invocation::Explain { .. }
+        | Invocation::Record { .. } => unreachable!(),
     };
     let interrupted = Arc::new(AtomicBool::new(false));
     let signal_flag = Arc::clone(&interrupted);
