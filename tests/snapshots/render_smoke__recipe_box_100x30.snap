@@ -22,11 +22,11 @@ expression: "render_screen(100, 30, false, \"reopen\")"
 │                                                                                                  │
 │                                                                                                  │
 │                                                                                                  │
-│                                                                                                  │
 │┌ JOURNEY BREAK ─────────────────────────────────────────────────────────────────────────────────┐│
-││╳ REOPEN SAVED RECIPES                                                                          ││
+││╳ REOPEN SAVED RECIPES   ID  reopen                                                             ││
 ││Required implementation is recorded absent. Downstream unresolved: Find a saved recipe.         ││
 ││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                       ││
+││RUN FROM MAP ROOT  proof-lantern explain reopen                                                 ││
 │└────────────────────────────────────────────────────────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐

@@ -71,8 +71,7 @@ After performing the observable check described by `proof_needed`, record what
 you actually saw:
 
 ```sh
-proof-lantern record start passed \
-  --summary "I completed the visible starting step." .
+proof-lantern record start passed --summary "I completed the visible starting step." .
 ```
 
 The claim can be `built`, `missing`, `passed`, or `failed`. This command writes

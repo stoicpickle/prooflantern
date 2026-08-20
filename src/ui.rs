@@ -5,11 +5,13 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     App,
     model::{
-        CapabilityAssessment, CapabilityRole, CurrentFocus, DisplayState, EvidenceSource, FocusKind,
+        CapabilityAssessment, CapabilityRole, Claim, CurrentFocus, DisplayState, EvidenceSource,
+        FocusKind, Freshness,
     },
     text::{middle_truncate, truncate},
     theme::Palette,
@@ -48,7 +50,8 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     } else {
         render_journey(frame, frame_rows[1], app, palette);
         if app.inspector_open() {
-            let height = frame_rows[1].height.min(13);
+            let drawer_height = if app.project_command_hints() { 14 } else { 13 };
+            let height = frame_rows[1].height.min(drawer_height);
             let drawer = Rect::new(
                 frame_rows[1].x,
                 frame_rows[1].bottom().saturating_sub(height),
@@ -105,11 +108,8 @@ fn render_journey(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette
     if inner.width == 0 || inner.height == 0 {
         return;
     }
-    let focus_height = if app.project().warnings.is_empty() {
-        5
-    } else {
-        6
-    };
+    let focus_height =
+        5 + u16::from(!app.project().warnings.is_empty()) + u16::from(app.project_command_hints());
     let rows = Layout::vertical([
         Constraint::Length(3),
         Constraint::Length(5),
@@ -380,6 +380,13 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
             let accent = focus_style(kind, palette);
             let action_width = width.saturating_sub(action.heading.len() + 2);
             let panel_title = format!(" {} ", kind.heading());
+            let id_budget = (width / 3).max(8);
+            let id = middle_truncate(
+                &capability.intent.id,
+                id_budget.saturating_sub("ID  ".len()),
+            );
+            let id_suffix = format!("   ID  {id}");
+            let label_width = width.saturating_sub(2 + UnicodeWidthStr::width(id_suffix.as_str()));
             let mut lines = vec![
                 Line::from(vec![
                     Span::styled(
@@ -387,9 +394,10 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
                         state_style(capability.display, palette).bold(),
                     ),
                     Span::styled(
-                        capability.intent.label.to_uppercase(),
+                        truncate(&capability.intent.label.to_uppercase(), label_width),
                         Style::default().fg(palette.text).bold(),
                     ),
+                    Span::styled(id_suffix, Style::default().fg(palette.muted)),
                 ]),
                 Line::from(Span::styled(
                     truncate(&summary, width.max(1)),
@@ -406,6 +414,18 @@ fn render_focus(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) 
                     ),
                 ]),
             ];
+            let command_width = width.saturating_sub(UnicodeWidthStr::width("RUN FROM MAP ROOT  "));
+            if let Some(command) =
+                project_explain_command(app, &capability.intent.id, command_width)
+            {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "RUN FROM MAP ROOT  ",
+                        Style::default().fg(palette.primary).bold(),
+                    ),
+                    Span::styled(command, Style::default().fg(palette.text)),
+                ]));
+            }
             if let Some(warning) = project_warning_line(app, area, palette) {
                 lines.push(warning);
             }
@@ -466,7 +486,14 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         return;
     }
     let width = usize::from(inner.width).max(1);
-    let proof_height = if inner.width < 60 { 6 } else { 3 }.min(inner.height);
+    let command = project_explain_command(app, &capability.intent.id, width);
+    let proof_height = match (command.is_some(), inner.width < 60) {
+        (true, true) => 8,
+        (true, false) => 4,
+        (false, true) => 6,
+        (false, false) => 3,
+    }
+    .min(inner.height);
     let rows = Layout::vertical([
         Constraint::Length(3),
         Constraint::Length(3),
@@ -497,7 +524,13 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
                 ),
                 Span::styled("   ◇ ACCEPTED", Style::default().fg(palette.muted)),
             ]),
-            Line::default(),
+            Line::from(Span::styled(
+                format!(
+                    "ID  {}",
+                    middle_truncate(&capability.intent.id, width.saturating_sub(4))
+                ),
+                Style::default().fg(palette.muted),
+            )),
         ]),
         rows[0],
     );
@@ -522,12 +555,27 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         )));
     } else if available > 0 {
         let detailed = rows[2].width < 60;
-        let rows_per_reason = if detailed { 2 } else { 1 };
-        let visible_reasons = capability
-            .reasons
-            .len()
-            .min((available / rows_per_reason).max(1));
-        for (index, reason) in capability.reasons.iter().take(visible_reasons).enumerate() {
+        if available == 1
+            && capability.display == DisplayState::Conflicting
+            && let Some(line) = compact_conflict_line(capability, width)
+        {
+            evidence.push(Line::from(Span::styled(
+                line,
+                Style::default().fg(palette.warning),
+            )));
+            frame.render_widget(Paragraph::new(evidence), rows[2]);
+            if let Some(command) = command {
+                let proof_rows =
+                    Layout::vertical([Constraint::Min(2), Constraint::Length(2)]).split(rows[3]);
+                render_inspector_proof(frame, proof_rows[0], capability, palette);
+                render_inspector_command(frame, proof_rows[1], command, palette);
+            } else {
+                render_inspector_proof(frame, rows[3], capability, palette);
+            }
+            return;
+        }
+        let visible = visible_evidence(capability, available, detailed);
+        for (index, (reason, show_location)) in visible.iter().enumerate() {
             let source = match reason.source {
                 EvidenceSource::Human => "HUMAN",
                 EvidenceSource::StaticScan => "STATIC SCAN",
@@ -547,29 +595,26 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
             } else {
                 String::new()
             };
-            let remaining = capability.reasons.len() - visible_reasons;
-            let more = if index + 1 == visible_reasons && remaining > 0 {
+            let remaining = capability.reasons.len() - visible.len();
+            let more = if index + 1 == visible.len() && remaining > 0 {
                 format!("  (+{remaining} more)")
             } else {
                 String::new()
             };
             if detailed {
-                evidence.push(Line::from(vec![
-                    Span::styled(
-                        format!("{source}{freshness}  "),
-                        Style::default().fg(palette.primary),
-                    ),
-                    Span::styled(&reason.fact.summary, Style::default().fg(palette.text)),
-                ]));
-                if !location.is_empty() {
+                let summary = format!("{source}{freshness}  {}{more}", reason.fact.summary);
+                let summary = if capability.reasons.len() == 1 && available >= 3 {
+                    summary
+                } else {
+                    middle_truncate(&summary, width)
+                };
+                evidence.push(Line::from(Span::styled(
+                    summary,
+                    Style::default().fg(palette.text),
+                )));
+                if *show_location && !location.is_empty() {
                     evidence.push(Line::from(Span::styled(
                         middle_truncate(location.trim(), width),
-                        Style::default().fg(palette.muted),
-                    )));
-                }
-                if !more.is_empty() {
-                    evidence.push(Line::from(Span::styled(
-                        more.trim().to_owned(),
                         Style::default().fg(palette.muted),
                     )));
                 }
@@ -586,6 +631,22 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         }
     }
     frame.render_widget(Paragraph::new(evidence).wrap(Wrap { trim: true }), rows[2]);
+    if let Some(command) = command {
+        let proof_rows =
+            Layout::vertical([Constraint::Min(2), Constraint::Length(2)]).split(rows[3]);
+        render_inspector_proof(frame, proof_rows[0], capability, palette);
+        render_inspector_command(frame, proof_rows[1], command, palette);
+    } else {
+        render_inspector_proof(frame, rows[3], capability, palette);
+    }
+}
+
+fn render_inspector_proof(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    capability: &CapabilityAssessment,
+    palette: Palette,
+) {
     frame.render_widget(
         Paragraph::new(vec![
             heading("PROOF NEEDED", palette),
@@ -596,8 +657,96 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         ])
         .wrap(Wrap { trim: true })
         .style(Style::default().bg(palette.panel)),
-        rows[3],
+        area,
     );
+}
+
+fn render_inspector_command(frame: &mut Frame<'_>, area: Rect, command: String, palette: Palette) {
+    frame.render_widget(
+        Paragraph::new(vec![
+            heading("RUN FROM MAP ROOT", palette),
+            Line::from(Span::styled(command, Style::default().fg(palette.text))),
+        ])
+        .style(Style::default().bg(palette.panel)),
+        area,
+    );
+}
+
+fn compact_conflict_line(capability: &CapabilityAssessment, width: usize) -> Option<String> {
+    let pair: Vec<_> = capability
+        .reasons
+        .iter()
+        .filter(|reason| reason.fact.freshness == Freshness::Current)
+        .take(2)
+        .collect();
+    let [left, right] = pair.as_slice() else {
+        return None;
+    };
+    let remaining = capability.reasons.len().saturating_sub(2);
+    let suffix = if remaining > 0 {
+        format!("  (+{remaining} more)")
+    } else {
+        String::new()
+    };
+    Some(middle_truncate(
+        &format!(
+            "CURRENT CONFLICT  {} ↔ {}{suffix}",
+            claim_label(left.fact.claim),
+            claim_label(right.fact.claim)
+        ),
+        width,
+    ))
+}
+
+const fn claim_label(claim: Claim) -> &'static str {
+    match claim {
+        Claim::ImplementationPresent => "BUILT",
+        Claim::ImplementationAbsent => "MISSING",
+        Claim::VerificationPassed => "PASSED",
+        Claim::VerificationFailed => "FAILED",
+    }
+}
+
+fn visible_evidence(
+    capability: &CapabilityAssessment,
+    available: usize,
+    detailed: bool,
+) -> Vec<(&crate::model::EvidenceReason, bool)> {
+    if !detailed {
+        return capability
+            .reasons
+            .iter()
+            .take(available)
+            .map(|reason| (reason, false))
+            .collect();
+    }
+
+    let mut remaining_rows = available;
+    let mut visible = Vec::new();
+    let conflict_pair = if capability.display == DisplayState::Conflicting {
+        capability.reasons.len().min(2)
+    } else {
+        0
+    };
+    for (index, reason) in capability.reasons.iter().enumerate() {
+        if remaining_rows == 0 {
+            break;
+        }
+        let has_location = reason.fact.location.is_some();
+        let pair_rows_to_reserve = conflict_pair.saturating_sub(index + 1);
+        let show_location = has_location && remaining_rows >= 2 + pair_rows_to_reserve;
+        remaining_rows -= 1 + usize::from(show_location);
+        visible.push((reason, show_location));
+    }
+    visible
+}
+
+fn project_explain_command(app: &App, capability_id: &str, width: usize) -> Option<String> {
+    if !app.project_command_hints() || !crate::reasoning::is_portable_capability_id(capability_id) {
+        return None;
+    }
+    let command = format!("proof-lantern explain {capability_id}");
+    (UnicodeWidthStr::width(command.as_str()) <= width).then_some(command)
 }
 
 fn render_footer(
@@ -743,7 +892,10 @@ fn instrument_block<'a>(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+    use crate::{evaluate, load_project};
 
     #[test]
     fn missing_capability_physically_breaks_the_core_path() {
@@ -766,5 +918,30 @@ mod tests {
         assert_eq!(support_window_start(6, 0, 3), 0);
         assert_eq!(support_window_start(6, 4, 3), 3);
         assert_eq!(support_window_start(2, 1, 3), 0);
+    }
+
+    #[test]
+    fn command_hints_require_a_safe_id_and_enough_untruncated_width() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+        let (spec, observations) = load_project(root).unwrap();
+        let app = App::new(evaluate(spec, observations).unwrap()).with_project_command_hints();
+
+        assert_eq!(
+            project_explain_command(&app, "reopen", 41).as_deref(),
+            Some("proof-lantern explain reopen")
+        );
+        assert_eq!(project_explain_command(&app, "unsafe id", 80), None);
+        assert_eq!(
+            project_explain_command(&app, "1starts-with-digit", 80),
+            None
+        );
+        assert_eq!(
+            project_explain_command(&app, "-starts-like-an-option", 80),
+            None
+        );
+        assert_eq!(
+            project_explain_command(&app, "a-safe-but-too-long-capability-id", 41),
+            None
+        );
     }
 }

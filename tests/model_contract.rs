@@ -206,6 +206,38 @@ fn a_project_without_an_accepted_core_journey_is_rejected() {
 }
 
 #[test]
+fn capability_ids_use_a_portable_command_safe_grammar() {
+    for invalid_id in [
+        "NeedsProof",
+        "needs proof",
+        "1needs-proof",
+        "-needs-proof",
+        "needs/proof",
+        "réopen",
+    ] {
+        let (mut spec, observations) = load_project(fixture_root()).unwrap();
+        spec.capabilities.push(CapabilityIntent {
+            id: invalid_id.into(),
+            label: "Invalid command ID".into(),
+            map_label: None,
+            role: CapabilityRole::Optional,
+            depends_on: Vec::new(),
+            proof_needed: "Confirm invalid IDs are rejected.".into(),
+            notes: None,
+            manual_evidence: Vec::new(),
+        });
+
+        let error = evaluate(spec, observations).expect_err("unsafe ID should be rejected");
+        assert!(
+            error.to_string().contains(
+                "must start with a lowercase letter and use only lowercase letters, digits, hyphens, or underscores"
+            ),
+            "unexpected error for {invalid_id}: {error}"
+        );
+    }
+}
+
+#[test]
 fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
     let (spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
@@ -343,6 +375,157 @@ fn stale_proof_remains_visible_without_counting_as_current_proof() {
 }
 
 #[test]
+fn current_failure_precedes_the_stale_pass_it_replaced() {
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
+    for observation in &mut observations.observations {
+        if observation.capability_id == "add" && observation.fact.claim == Claim::VerificationPassed
+        {
+            observation.fact.freshness = Freshness::Stale;
+        }
+    }
+    observations.observations.push(MachineObservation {
+        capability_id: "add".into(),
+        source: MachineSource::ImportedTestResult,
+        fact: EvidenceFact {
+            claim: Claim::VerificationFailed,
+            freshness: Freshness::Current,
+            summary: "The replacement add-recipe check failed.".into(),
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
+        },
+    });
+
+    let evaluated = evaluate(spec, observations).unwrap();
+    let reasons = &evaluated.capability("add").unwrap().reasons;
+
+    assert_eq!(reasons[0].fact.claim, Claim::VerificationFailed);
+    assert_eq!(reasons[0].fact.freshness, Freshness::Current);
+    assert_eq!(reasons[1].fact.claim, Claim::ImplementationPresent);
+    assert_eq!(reasons[1].fact.freshness, Freshness::Current);
+    assert_eq!(reasons[2].fact.claim, Claim::VerificationPassed);
+    assert_eq!(reasons[2].fact.freshness, Freshness::Stale);
+}
+
+#[test]
+fn the_evidence_that_forms_a_conflict_precedes_other_current_history() {
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
+    observations.observations.push(MachineObservation {
+        capability_id: "reopen".into(),
+        source: MachineSource::ImportedTestResult,
+        fact: EvidenceFact {
+            claim: Claim::VerificationFailed,
+            freshness: Freshness::Current,
+            summary: "A current check failed before the reopen flow ran.".into(),
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                line_start: None,
+                line_end: None,
+            }),
+        },
+    });
+    observations.observations.push(MachineObservation {
+        capability_id: "reopen".into(),
+        source: MachineSource::StaticScan,
+        fact: EvidenceFact {
+            claim: Claim::ImplementationPresent,
+            freshness: Freshness::Current,
+            summary: "A current scan found a reopen implementation.".into(),
+            location: Some(EvidenceLocation {
+                path: "fixtures/recipe_box/src/storage.rs".into(),
+                line_start: Some(1),
+                line_end: Some(8),
+            }),
+        },
+    });
+
+    let evaluated = evaluate(spec, observations).unwrap();
+    let capability = evaluated.capability("reopen").unwrap();
+
+    assert_eq!(capability.display, DisplayState::Conflicting);
+    assert_eq!(
+        capability.reasons[0].fact.claim,
+        Claim::ImplementationPresent
+    );
+    assert_eq!(
+        capability.reasons[1].fact.claim,
+        Claim::ImplementationAbsent
+    );
+    assert_eq!(capability.reasons[2].fact.claim, Claim::VerificationFailed);
+}
+
+#[test]
+fn opposing_verification_facts_precede_duplicate_current_history() {
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
+    for (claim, summary) in [
+        (
+            Claim::VerificationPassed,
+            "A second current add check also passed.",
+        ),
+        (
+            Claim::VerificationFailed,
+            "The newest current add check failed.",
+        ),
+    ] {
+        observations.observations.push(MachineObservation {
+            capability_id: "add".into(),
+            source: MachineSource::ImportedTestResult,
+            fact: EvidenceFact {
+                claim,
+                freshness: Freshness::Current,
+                summary: summary.into(),
+                location: Some(EvidenceLocation {
+                    path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                    line_start: None,
+                    line_end: None,
+                }),
+            },
+        });
+    }
+
+    let evaluated = evaluate(spec, observations).unwrap();
+    let reasons = &evaluated.capability("add").unwrap().reasons;
+
+    assert_eq!(reasons[0].fact.claim, Claim::VerificationPassed);
+    assert_eq!(reasons[1].fact.claim, Claim::VerificationFailed);
+    assert_eq!(reasons[2].fact.claim, Claim::ImplementationPresent);
+    assert_eq!(reasons[3].fact.claim, Claim::VerificationPassed);
+}
+
+#[test]
+fn absent_and_passing_facts_precede_duplicate_current_history() {
+    let (spec, mut observations) = load_project(fixture_root()).unwrap();
+    for summary in [
+        "One current reopen check passed.",
+        "A duplicate current reopen check also passed.",
+    ] {
+        observations.observations.push(MachineObservation {
+            capability_id: "reopen".into(),
+            source: MachineSource::ImportedTestResult,
+            fact: EvidenceFact {
+                claim: Claim::VerificationPassed,
+                freshness: Freshness::Current,
+                summary: summary.into(),
+                location: Some(EvidenceLocation {
+                    path: "fixtures/recipe_box/artifacts/test-results.json".into(),
+                    line_start: None,
+                    line_end: None,
+                }),
+            },
+        });
+    }
+
+    let evaluated = evaluate(spec, observations).unwrap();
+    let reasons = &evaluated.capability("reopen").unwrap().reasons;
+
+    assert_eq!(reasons[0].fact.claim, Claim::VerificationPassed);
+    assert_eq!(reasons[1].fact.claim, Claim::ImplementationAbsent);
+    assert_eq!(reasons[2].fact.claim, Claim::VerificationPassed);
+}
+
+#[test]
 fn blocked_descendants_are_found_through_a_proven_intermediate() {
     let (mut spec, mut observations) = load_project(fixture_root()).unwrap();
     observations.observations.push(MachineObservation {
@@ -381,6 +564,46 @@ fn blocked_descendants_are_found_through_a_proven_intermediate() {
     };
     assert_eq!(capability.intent.id, "reopen");
     assert!(summary.ends_with("Downstream unresolved: Use the found recipe."));
+}
+
+#[test]
+fn blocked_core_descendants_are_found_through_a_supporting_bridge() {
+    let (mut spec, observations) = load_project(fixture_root()).unwrap();
+    spec.capabilities.push(CapabilityIntent {
+        id: "reopen_bridge".into(),
+        label: "Reopen bridge".into(),
+        map_label: Some("Bridge".into()),
+        role: CapabilityRole::Supporting {
+            supports: "find".into(),
+        },
+        depends_on: vec!["reopen".into()],
+        proof_needed: "Connect reopening to a follow-on journey step.".into(),
+        notes: None,
+        manual_evidence: Vec::new(),
+    });
+    spec.capabilities.push(CapabilityIntent {
+        id: "use".into(),
+        label: "Use the reopened recipe".into(),
+        map_label: Some("Use".into()),
+        role: CapabilityRole::Core { order: 5 },
+        depends_on: vec!["reopen_bridge".into()],
+        proof_needed: "Follow one instruction in the reopened recipe.".into(),
+        notes: None,
+        manual_evidence: Vec::new(),
+    });
+
+    let evaluated = evaluate(spec, observations).unwrap();
+    let CurrentFocus::Capability {
+        capability,
+        summary,
+        ..
+    } = evaluated.current_focus()
+    else {
+        panic!("the missing capability should remain the current focus");
+    };
+
+    assert_eq!(capability.intent.id, "reopen");
+    assert!(summary.contains("Use the reopened recipe"));
 }
 
 #[test]

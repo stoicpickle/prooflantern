@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"));
 
     let (spec, observations) = load_project(project_root)?;
-    let mut app = App::new(evaluate(spec, observations)?);
+    let mut app = App::new(evaluate(spec, observations)?).with_project_command_hints();
     let _ = app.select_id(&selected);
     if inspector {
         app.toggle_inspector();
@@ -55,6 +55,8 @@ fn render_svg(cells: &[Cell], width: u16, height: u16) -> String {
     let mut svg = format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pixel_width}" height="{pixel_height}" viewBox="0 0 {pixel_width} {pixel_height}"><rect width="100%" height="100%" fill="#050505"/><g font-family="Menlo, Monaco, monospace" font-size="15">"##
     );
+    let mut backgrounds = String::new();
+    let mut glyphs = String::new();
     for (index, cell) in cells.iter().enumerate() {
         let x = (index % usize::from(width)) as u16 * CELL_W;
         let y = (index / usize::from(width)) as u16 * CELL_H;
@@ -67,20 +69,21 @@ fn render_svg(cells: &[Cell], width: u16, height: u16) -> String {
         };
         if bg != "#050505" {
             let _ = write!(
-                svg,
+                backgrounds,
                 r#"<rect x="{x}" y="{y}" width="{CELL_W}" height="{CELL_H}" fill="{bg}"/>"#
             );
         }
         let symbol = escape_xml(cell.symbol());
-        if symbol.trim().is_empty() {
-            continue;
+        if !symbol.trim().is_empty() {
+            let _ = write!(
+                glyphs,
+                r#"<text x="{x}" y="{}" fill="{fg}" font-weight="{weight}">{symbol}</text>"#,
+                y + TEXT_BASELINE
+            );
         }
-        let _ = write!(
-            svg,
-            r#"<text x="{x}" y="{}" fill="{fg}" font-weight="{weight}">{symbol}</text>"#,
-            y + TEXT_BASELINE
-        );
     }
+    svg.push_str(&backgrounds);
+    svg.push_str(&glyphs);
     svg.push_str("</g></svg>");
     svg
 }

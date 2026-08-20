@@ -35,21 +35,32 @@ pub enum Command {
         path: PathBuf,
     },
     /// Explain one capability without opening the TUI.
+    #[command(
+        after_help = "Examples:\n  proof-lantern explain reopen .\n  proof-lantern explain save fixtures/recipe_box"
+    )]
     Explain {
+        /// Capability ID from .proof-lantern/project.yml (for example, reopen).
         #[arg(value_name = "NODE")]
         node: String,
+        /// Project directory containing .proof-lantern/project.yml.
         #[arg(value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
     /// Record one human-observed fact without rewriting project.yml.
+    #[command(
+        after_help = "Examples:\n  proof-lantern record reopen passed --summary \"The recipe appeared after reopening.\" .\n  proof-lantern record save failed --summary \"The saved recipe disappeared after restart.\" ."
+    )]
     Record {
+        /// Capability ID from .proof-lantern/project.yml (for example, reopen).
         #[arg(value_name = "NODE")]
         node: String,
+        /// What you observed: built, missing, passed, or failed.
         #[arg(value_name = "CLAIM")]
         claim: RecordClaim,
         /// A short description of what you observed.
         #[arg(long, value_name = "TEXT")]
         summary: String,
+        /// Project directory containing .proof-lantern/project.yml.
         #[arg(value_name = "PATH", default_value = ".")]
         path: PathBuf,
     },
