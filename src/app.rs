@@ -22,6 +22,7 @@ pub struct App {
     project: EvaluatedProject,
     selected: usize,
     inspector_open: bool,
+    project_command_hints: bool,
     interrupted: Arc<AtomicBool>,
     should_quit: bool,
 }
@@ -44,6 +45,7 @@ impl App {
             project,
             selected,
             inspector_open: false,
+            project_command_hints: false,
             interrupted: Arc::new(AtomicBool::new(false)),
             should_quit: false,
         }
@@ -63,6 +65,15 @@ impl App {
 
     pub const fn inspector_open(&self) -> bool {
         self.inspector_open
+    }
+
+    pub const fn project_command_hints(&self) -> bool {
+        self.project_command_hints
+    }
+
+    pub const fn with_project_command_hints(mut self) -> Self {
+        self.project_command_hints = true;
+        self
     }
 
     pub fn with_interrupt_flag(mut self, interrupted: Arc<AtomicBool>) -> Self {

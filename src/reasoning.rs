@@ -55,6 +55,7 @@ pub fn evaluate(
                 }),
         );
         let (implementation, verification, display) = derive_states(&reasons);
+        order_reasons(&mut reasons, implementation, verification, display);
         if verification == VerificationState::Stale {
             warnings.push(ModelWarning::StaleEvidenceOnly(capability.id.clone()));
         }
@@ -133,6 +134,142 @@ fn derive_states(
     (implementation, verification, display)
 }
 
+fn order_reasons(
+    reasons: &mut [EvidenceReason],
+    implementation: ImplementationState,
+    verification: VerificationState,
+    display: DisplayState,
+) {
+    let mut occurrences = BTreeMap::new();
+    let keys: Vec<_> = reasons
+        .iter()
+        .map(|reason| {
+            let freshness = freshness_order(reason.fact.freshness);
+            let group = reason_group(reason.fact.claim, implementation, verification, display);
+            let occurrence = occurrences.entry((freshness, group)).or_insert(0_usize);
+            let key = (
+                freshness,
+                *occurrence,
+                reason_salience(reason.fact.claim, implementation, verification, display),
+                group,
+            );
+            *occurrence += 1;
+            key
+        })
+        .collect();
+    let mut order: Vec<_> = (0..reasons.len()).collect();
+    // Stable sorting preserves authored/imported order within an equally salient group.
+    order.sort_by_key(|index| keys[*index]);
+    let ordered: Vec<_> = order
+        .into_iter()
+        .map(|index| reasons[index].clone())
+        .collect();
+    reasons.clone_from_slice(&ordered);
+}
+
+fn reason_group(
+    claim: Claim,
+    implementation: ImplementationState,
+    verification: VerificationState,
+    display: DisplayState,
+) -> u8 {
+    if display != DisplayState::Conflicting {
+        return claim_rank(claim);
+    }
+    if verification == VerificationState::Conflicting {
+        return match claim {
+            Claim::VerificationPassed => 0,
+            Claim::VerificationFailed => 1,
+            Claim::ImplementationAbsent => 2,
+            Claim::ImplementationPresent => 3,
+        };
+    }
+    if implementation == ImplementationState::Conflicting {
+        return match claim {
+            Claim::ImplementationPresent | Claim::VerificationPassed => 0,
+            Claim::ImplementationAbsent => 1,
+            Claim::VerificationFailed => 2,
+        };
+    }
+    claim_rank(claim)
+}
+
+fn reason_salience(
+    claim: Claim,
+    implementation: ImplementationState,
+    verification: VerificationState,
+    display: DisplayState,
+) -> u8 {
+    if determines_display(claim, implementation, verification, display) {
+        0
+    } else if determines_component_state(claim, implementation, verification) {
+        1
+    } else {
+        2
+    }
+}
+
+fn determines_display(
+    claim: Claim,
+    implementation: ImplementationState,
+    verification: VerificationState,
+    display: DisplayState,
+) -> bool {
+    match display {
+        DisplayState::Proven => matches!(claim, Claim::VerificationPassed),
+        DisplayState::BuiltUnproven => matches!(claim, Claim::ImplementationPresent),
+        DisplayState::Missing => matches!(claim, Claim::ImplementationAbsent),
+        DisplayState::ProofFailed => matches!(claim, Claim::VerificationFailed),
+        DisplayState::Unknown => false,
+        DisplayState::Conflicting => {
+            (implementation == ImplementationState::Conflicting
+                && matches!(
+                    claim,
+                    Claim::ImplementationPresent
+                        | Claim::ImplementationAbsent
+                        | Claim::VerificationPassed
+                ))
+                || (verification == VerificationState::Conflicting
+                    && matches!(claim, Claim::VerificationPassed | Claim::VerificationFailed))
+        }
+    }
+}
+
+fn determines_component_state(
+    claim: Claim,
+    implementation: ImplementationState,
+    verification: VerificationState,
+) -> bool {
+    let implementation_claim = match implementation {
+        ImplementationState::Unknown => false,
+        ImplementationState::Present => matches!(
+            claim,
+            Claim::ImplementationPresent | Claim::VerificationPassed
+        ),
+        ImplementationState::Absent => matches!(claim, Claim::ImplementationAbsent),
+        ImplementationState::Conflicting => matches!(
+            claim,
+            Claim::ImplementationPresent | Claim::ImplementationAbsent | Claim::VerificationPassed
+        ),
+    };
+    let verification_claim = match verification {
+        VerificationState::Unknown => false,
+        VerificationState::Passed => matches!(claim, Claim::VerificationPassed),
+        VerificationState::Failed => matches!(claim, Claim::VerificationFailed),
+        VerificationState::Stale | VerificationState::Conflicting => {
+            matches!(claim, Claim::VerificationPassed | Claim::VerificationFailed)
+        }
+    };
+    implementation_claim || verification_claim
+}
+
+const fn freshness_order(freshness: Freshness) -> u8 {
+    match freshness {
+        Freshness::Current => 0,
+        Freshness::Stale => 1,
+    }
+}
+
 fn validate(spec: &ProjectSpec, observations: &ObservationSet) -> Vec<String> {
     let mut errors = Vec::new();
     if spec.schema_version != 1 {
@@ -159,8 +296,16 @@ fn validate(spec: &ProjectSpec, observations: &ObservationSet) -> Vec<String> {
     for capability in &spec.capabilities {
         if capability.id.trim().is_empty() {
             errors.push("capability id must not be blank".into());
-        } else if !ids.insert(capability.id.as_str()) {
-            errors.push(format!("duplicate capability id {}", capability.id));
+        } else {
+            if !is_portable_capability_id(&capability.id) {
+                errors.push(format!(
+                    "capability id {:?} must start with a lowercase letter and use only lowercase letters, digits, hyphens, or underscores",
+                    capability.id
+                ));
+            }
+            if !ids.insert(capability.id.as_str()) {
+                errors.push(format!("duplicate capability id {}", capability.id));
+            }
         }
         if capability.label.trim().is_empty() {
             errors.push(format!(
@@ -271,6 +416,17 @@ fn validate(spec: &ProjectSpec, observations: &ObservationSet) -> Vec<String> {
     errors
 }
 
+pub(crate) fn is_portable_capability_id(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    first.is_ascii_lowercase()
+        && bytes.all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
+        })
+}
+
 fn validate_fact(fact: &EvidenceFact, capability_id: &str, errors: &mut Vec<String>) {
     if fact.summary.trim().is_empty() {
         errors.push(format!(
@@ -359,12 +515,12 @@ fn blocked_core_ids(id: &str, assessments: &[CapabilityAssessment]) -> Vec<Strin
     let mut visited = BTreeSet::new();
     let mut frontier = vec![id];
     while let Some(current) = frontier.pop() {
-        for item in assessments.iter().filter(|item| {
-            item.intent.depends_on.iter().any(|value| value == current)
-                && item.intent.role.is_core()
-        }) {
+        for item in assessments
+            .iter()
+            .filter(|item| item.intent.depends_on.iter().any(|value| value == current))
+        {
             if visited.insert(item.intent.id.clone()) {
-                if !item.display.is_resolved() {
+                if item.intent.role.is_core() && !item.display.is_resolved() {
                     blocked.insert(item.intent.id.clone());
                 }
                 frontier.push(item.intent.id.as_str());

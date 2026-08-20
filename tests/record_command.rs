@@ -1,9 +1,12 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::{Command, Output, Stdio},
+    process::{Command, Output},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+#[cfg(feature = "terminal-test-hooks")]
+use std::process::Stdio;
 
 use proof_lantern::{DisplayState, Freshness, ManualEvidenceSet, evaluate, load_project};
 
@@ -79,6 +82,36 @@ fn record_adds_human_evidence_without_rewriting_intent() {
     assert_eq!(
         evaluated.capability("start").unwrap().display,
         DisplayState::Proven
+    );
+}
+
+#[test]
+fn generated_path_free_record_command_runs_from_a_map_root_with_spaces() {
+    let project = TempProject::new("portable path's map");
+    let output = Command::new(env!("CARGO_BIN_EXE_proof-lantern"))
+        .current_dir(project.root())
+        .args([
+            "record",
+            "--summary",
+            "I completed the visible starting step.",
+            "--",
+            "start",
+            "passed",
+        ])
+        .output()
+        .expect("generated record command should launch");
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let stdout = String::from_utf8(output.stdout).expect("output should be UTF-8");
+
+    assert!(
+        stdout.contains("Next: run `proof-lantern next .` from this map root."),
+        "{stdout}"
+    );
+    assert!(
+        project
+            .root()
+            .join(".proof-lantern/manual-evidence.json")
+            .is_file()
     );
 }
 
@@ -182,11 +215,41 @@ fn record_rejects_unknown_capabilities_without_creating_evidence() {
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("error should be UTF-8");
     assert!(stderr.contains("unknown capability not-a-node"), "{stderr}");
+    assert!(stderr.contains("Valid capability IDs:"), "{stderr}");
+    for id in ["start", "outcome", "return"] {
+        assert!(stderr.contains(id), "missing {id} in:\n{stderr}");
+    }
     assert!(
         !project
             .root()
             .join(".proof-lantern/manual-evidence.json")
             .exists()
+    );
+}
+
+#[test]
+fn record_help_describes_node_and_shows_truthful_examples() {
+    let output = Command::new(env!("CARGO_BIN_EXE_proof-lantern"))
+        .args(["record", "--help"])
+        .output()
+        .expect("Proof Lantern help should launch");
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(output.stderr.is_empty(), "{:?}", output.stderr);
+    let stdout = String::from_utf8(output.stdout).expect("help should be UTF-8");
+
+    assert!(
+        stdout.contains("Capability ID from .proof-lantern/project.yml"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("What you observed"), "{stdout}");
+    assert!(stdout.contains("Examples:"), "{stdout}");
+    assert!(
+        stdout.contains("proof-lantern record reopen passed"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("proof-lantern record save failed"),
+        "{stdout}"
     );
 }
 

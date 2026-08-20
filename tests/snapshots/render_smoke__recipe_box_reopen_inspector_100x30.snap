@@ -15,11 +15,10 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │                          UNPROVEN                  │                  │                          │
 │                                                    └──────────────────┘                          │
 │                            └──── ✓ LOCAL DATABASE  SUPPORTING                                    │
-│                                                                                                  │
 ┌ INSPECTOR ───────────────────────────────────────────────────────────────────────────────────────┐
 │╳ REOPEN SAVED RECIPES                                                                            │
 │MISSING   ◇ ACCEPTED                                                                              │
-│                                                                                                  │
+│ID  reopen                                                                                        │
 │WHY                                                                                               │
 │Explicit current evidence says the required implementation is absent.                             │
 │                                                                                                  │
@@ -27,7 +26,8 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │HUMAN  The builder confirmed that no reopen flow has been implemented.                            │
 │PROOF NEEDED                                                                                      │
 │Close app, reopen it, and confirm the saved recipe appears.                                       │
-│                                                                                                  │
+│RUN FROM MAP ROOT                                                                                 │
+│proof-lantern explain reopen                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
 │←→ NODE   E CLOSE   G FOCUS   Q EXIT                                                              │

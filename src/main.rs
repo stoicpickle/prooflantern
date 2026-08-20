@@ -11,7 +11,7 @@ use std::{
 
 use clap::Parser;
 use proof_lantern::{
-    App, CurrentFocus, EvaluatedProject, EvidenceSource, Freshness,
+    App, CurrentFocus, DisplayState, EvaluatedProject, EvidenceSource, Freshness,
     cli::{Cli, Invocation},
     evaluate, initialize_project, load_demo, load_project, record_manual_evidence,
 };
@@ -58,7 +58,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
         Invocation::Next(path) => {
-            print_next(&load_root(path)?)?;
+            print_next(&load_root(&path)?, &path)?;
             return Ok(());
         }
         Invocation::Explain { node, path } => {
@@ -71,6 +71,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             summary,
             path,
         } => {
+            ensure_known_capability(&load_root(&path)?, &node)?;
             let recorded = record_manual_evidence(&path, &node, claim.into(), &summary)?;
             println!(
                 "Recorded {} for {} in {}",
@@ -84,18 +85,18 @@ fn run() -> Result<(), Box<dyn Error>> {
                     recorded.superseded_records
                 );
             }
-            println!("Next: proof-lantern next {}", path.display());
+            println!("Next: run `proof-lantern next .` from this map root.");
             return Ok(());
         }
         Invocation::Demo | Invocation::Project(_) => {}
     }
 
-    let project = match invocation {
+    let (project, project_command_hints) = match invocation {
         Invocation::Demo => {
             let (spec, observations) = load_demo()?;
-            evaluate(spec, observations)?
+            (evaluate(spec, observations)?, false)
         }
-        Invocation::Project(path) => load_root(path)?,
+        Invocation::Project(path) => (load_root(path)?, true),
         Invocation::Init(_)
         | Invocation::Next(_)
         | Invocation::Explain { .. }
@@ -104,7 +105,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     let interrupted = Arc::new(AtomicBool::new(false));
     let signal_flag = Arc::clone(&interrupted);
     ctrlc::set_handler(move || signal_flag.store(true, Ordering::Relaxed))?;
-    let app = App::new(project).with_interrupt_flag(interrupted);
+    let mut app = App::new(project).with_interrupt_flag(interrupted);
+    if project_command_hints {
+        app = app.with_project_command_hints();
+    }
 
     #[cfg(feature = "terminal-test-hooks")]
     {
@@ -135,7 +139,7 @@ fn load_root(root: impl AsRef<Path>) -> Result<EvaluatedProject, Box<dyn Error>>
     Ok(evaluate(spec, observations)?)
 }
 
-fn print_next(project: &EvaluatedProject) -> io::Result<()> {
+fn print_next(project: &EvaluatedProject, path: &Path) -> io::Result<()> {
     let mut output = io::stdout().lock();
     match project.current_focus() {
         CurrentFocus::Complete { heading, summary } => {
@@ -157,20 +161,76 @@ fn print_next(project: &EvaluatedProject) -> io::Result<()> {
                 capability.intent.label,
                 capability.display.label()
             )?;
+            writeln!(output, "Capability ID: {}", capability.intent.id)?;
+            writeln!(output, "Run commands from map root: {}", path.display())?;
             writeln!(output, "{summary}")?;
             writeln!(output, "{}: {}", action.heading, action.instruction)?;
+            writeln!(output, "Inspect this capability and its evidence:")?;
+            writeln!(
+                output,
+                "  proof-lantern explain -- {}",
+                capability.intent.id
+            )?;
+            match capability.display {
+                DisplayState::Conflicting => {
+                    writeln!(
+                        output,
+                        "Reconcile the conflicting current evidence before recording another result."
+                    )?;
+                }
+                DisplayState::Missing => {
+                    writeln!(
+                        output,
+                        "Review the current MISSING evidence first. Project-authored or imported evidence must be updated or marked STALE at its source."
+                    )?;
+                    print_record_template(
+                        &mut output,
+                        capability.intent.id.as_str(),
+                        "After reconciling that evidence, edit this record template:",
+                    )?;
+                }
+                DisplayState::ProofFailed => {
+                    writeln!(
+                        output,
+                        "Review the current failed evidence first. Project-authored or imported evidence must be updated or marked STALE at its source."
+                    )?;
+                    print_record_template(
+                        &mut output,
+                        capability.intent.id.as_str(),
+                        "After reconciling that evidence, edit this record template:",
+                    )?;
+                }
+                DisplayState::Proven | DisplayState::BuiltUnproven | DisplayState::Unknown => {
+                    print_record_template(
+                        &mut output,
+                        capability.intent.id.as_str(),
+                        "Record template (edit CLAIM and the summary first):",
+                    )?;
+                }
+            }
         }
     }
     print_warnings(&mut output, project)
 }
 
+fn print_record_template(
+    output: &mut impl Write,
+    capability_id: &str,
+    heading: &str,
+) -> io::Result<()> {
+    writeln!(output, "{heading}")?;
+    writeln!(
+        output,
+        "  proof-lantern record --summary \"REPLACE WITH WHAT YOU OBSERVED\" -- {capability_id} CLAIM"
+    )?;
+    writeln!(
+        output,
+        "CLAIM can be built, missing, passed, or failed; unresolved conflicts are rejected."
+    )
+}
+
 fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
-    let capability = project.capability(node).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("unknown capability {node}"),
-        )
-    })?;
+    let capability = ensure_known_capability(project, node)?;
     let mut output = io::stdout().lock();
     writeln!(
         output,
@@ -209,6 +269,26 @@ fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
     }
     writeln!(output, "Proof needed: {}", capability.intent.proof_needed)?;
     print_warnings(&mut output, project)
+}
+
+fn ensure_known_capability<'a>(
+    project: &'a EvaluatedProject,
+    node: &str,
+) -> io::Result<&'a proof_lantern::CapabilityAssessment> {
+    project.capability(node).ok_or_else(|| {
+        let valid_ids = project
+            .capabilities
+            .iter()
+            .map(|capability| capability.intent.id.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "unknown capability {node}\nValid capability IDs: {valid_ids}\nUse an ID from .proof-lantern/project.yml."
+            ),
+        )
+    })
 }
 
 fn print_warnings(output: &mut impl Write, project: &EvaluatedProject) -> io::Result<()> {

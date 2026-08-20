@@ -9,10 +9,18 @@ These PNGs are visual-review artifacts generated from Ratatui's deterministic
 - `proof-lantern-self-100x30.png`: Proof Lantern's real five-node self-map with
   its completed core journey and NEXT selected.
 
-The SVG sources are reproducible and ignored by Git. On macOS, convert a render
-without changing its geometry with:
+The SVG sources are reproducible and ignored by Git. Rasterize them with a
+browser after its compositor has completed so every terminal cell is present.
+For example, on macOS with Chrome installed:
 
 ```sh
-sips -s format png proof/recipe-box-100x30.svg \
-  --out proof/recipe-box-100x30.png
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless --hide-scrollbars --force-device-scale-factor=1 \
+  --virtual-time-budget=2000 --run-all-compositor-stages-before-draw \
+  --window-size=1000,570 \
+  --screenshot="$PWD/proof/recipe-box-100x30.png" \
+  "file://$PWD/proof/recipe-box-100x30.svg"
 ```
+
+The exporter uses 10×19 pixels per terminal cell, so a 140×40 render uses a
+1400×760 browser viewport.

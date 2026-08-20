@@ -47,7 +47,7 @@ capabilities:
 - `depends_on` explains which earlier capabilities must work first.
 - `proof_needed` is an observable check, not a coding task.
 
-Use stable lowercase IDs with hyphens or underscores. Core order values must be
+Use portable IDs matching `[a-z][a-z0-9_-]*`. Core order values must be
 unique, but they do not need to be consecutive.
 
 ## Manual evidence
@@ -56,8 +56,7 @@ Evidence changes the displayed state. The easiest way to record a current
 human observation is the command line:
 
 ```sh
-proof-lantern record reopen passed \
-  --summary "I closed the app, reopened it, and the saved recipe appeared." .
+proof-lantern record reopen passed --summary "I closed the app, reopened it, and the saved recipe appeared." .
 ```
 
 The claim can be `built`, `missing`, `passed`, or `failed`. Proof Lantern stores

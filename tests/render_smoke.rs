@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use proof_lantern::{
-    App, Claim, EvidenceFact, EvidenceLocation, Freshness, evaluate, load_project, ui,
+    App, Claim, EvidenceFact, EvidenceLocation, Freshness, evaluate, load_demo, load_project, ui,
 };
 use ratatui::{Terminal, backend::TestBackend};
 
@@ -61,6 +61,11 @@ fn recipe_box_renders_the_promise_broken_path_and_current_focus() {
             screen.contains("PROOF NEEDED"),
             "{width}x{height}: {screen}"
         );
+        assert!(screen.contains("ID  reopen"), "{width}x{height}: {screen}");
+        assert!(
+            screen.contains("proof-lantern explain reopen"),
+            "{width}x{height}: {screen}"
+        );
     }
 }
 
@@ -105,6 +110,11 @@ fn compact_inspector_and_wide_layout_expose_only_the_needed_sections() {
         );
     }
     assert!(compact.contains("ACCEPTED CORE JOURNEY"), "{compact}");
+    assert!(compact.contains("ID  reopen"), "{compact}");
+    assert!(
+        compact.contains("proof-lantern explain reopen"),
+        "{compact}"
+    );
     assert_eq!(
         compact.matches("◇ ACCEPTED").count(),
         1,
@@ -119,6 +129,9 @@ fn compact_inspector_and_wide_layout_expose_only_the_needed_sections() {
         "accepted badge should appear only in the wide inspector: {wide}"
     );
     assert!(wide.contains("BUILT / UNPROVEN"), "{wide}");
+    assert!(wide.contains("ID  save"), "{wide}");
+    assert!(wide.contains("proof-lantern explain save"), "{wide}");
+    assert!(wide.contains("proof-lantern explain reopen"), "{wide}");
     assert!(wide.contains("Local save code appears to"), "{wide}");
     assert!(wide.contains("exist."), "{wide}");
     assert!(wide.contains("Save a recipe, close"), "{wide}");
@@ -164,13 +177,96 @@ fn compact_inspector_reserves_proof_space_when_evidence_is_long() {
             },
         );
     }
-    let app = App::new(evaluate(spec, observations).unwrap());
+    let app = App::new(evaluate(spec, observations).unwrap()).with_project_command_hints();
     let compact = render_app_screen(100, 30, true, "reopen", app);
 
     assert!(compact.contains("PROOF NEEDED"), "{compact}");
     assert!(compact.contains("Close app, reopen it"), "{compact}");
-    assert!(compact.contains("src/storage.rs:1-2"), "{compact}");
+    assert!(
+        compact.contains("The builder confirmed that no reopen flow has been implemented."),
+        "{compact}"
+    );
     assert!(compact.contains("(+2 more)"), "{compact}");
+    assert!(
+        compact.contains("proof-lantern explain reopen"),
+        "{compact}"
+    );
+}
+
+#[test]
+fn compact_inspector_pairs_pass_and_fail_before_duplicate_history() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+    let (mut spec, observations) = load_project(root).unwrap();
+    let add = spec
+        .capabilities
+        .iter_mut()
+        .find(|capability| capability.id == "add")
+        .unwrap();
+    add.manual_evidence.extend([
+        EvidenceFact {
+            claim: Claim::VerificationPassed,
+            freshness: Freshness::Current,
+            summary: "A duplicate current add check passed.".into(),
+            location: None,
+        },
+        EvidenceFact {
+            claim: Claim::VerificationFailed,
+            freshness: Freshness::Current,
+            summary: "The current add check failed.".into(),
+            location: None,
+        },
+    ]);
+    let app = App::new(evaluate(spec, observations).unwrap()).with_project_command_hints();
+    let compact = render_app_screen(100, 30, true, "add", app);
+
+    assert!(
+        compact.contains("CURRENT CONFLICT  PASSED ↔ FAILED"),
+        "{compact}"
+    );
+    assert!(compact.contains("PROOF NEEDED"), "{compact}");
+}
+
+#[test]
+fn compact_inspector_pairs_passing_and_missing_evidence() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
+    let (mut spec, observations) = load_project(root).unwrap();
+    let reopen = spec
+        .capabilities
+        .iter_mut()
+        .find(|capability| capability.id == "reopen")
+        .unwrap();
+    reopen.manual_evidence.extend([
+        EvidenceFact {
+            claim: Claim::VerificationPassed,
+            freshness: Freshness::Current,
+            summary: "A current reopen check passed.".into(),
+            location: None,
+        },
+        EvidenceFact {
+            claim: Claim::VerificationPassed,
+            freshness: Freshness::Current,
+            summary: "A duplicate current reopen check passed.".into(),
+            location: None,
+        },
+    ]);
+    let app = App::new(evaluate(spec, observations).unwrap()).with_project_command_hints();
+    let compact = render_app_screen(100, 30, true, "reopen", app);
+
+    assert!(
+        compact.contains("CURRENT CONFLICT  PASSED ↔ MISSING"),
+        "{compact}"
+    );
+    assert!(compact.contains("PROOF NEEDED"), "{compact}");
+}
+
+#[test]
+fn synthetic_demo_shows_ids_without_project_commands() {
+    let (spec, observations) = load_demo().unwrap();
+    let demo = App::new(evaluate(spec, observations).unwrap());
+    let screen = render_app_screen(100, 30, false, "reopen", demo);
+
+    assert!(screen.contains("ID  reopen"), "{screen}");
+    assert!(!screen.contains("proof-lantern explain"), "{screen}");
 }
 
 #[test]
@@ -254,10 +350,10 @@ fn pinned_recipe_box_app(capability_id: &str) -> App {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box");
     let (mut spec, observations) = load_project(root).unwrap();
     spec.project.pinned_keystone = Some(capability_id.into());
-    App::new(evaluate(spec, observations).unwrap())
+    App::new(evaluate(spec, observations).unwrap()).with_project_command_hints()
 }
 
 fn project_app(root: PathBuf) -> App {
     let (spec, observations) = load_project(root).unwrap();
-    App::new(evaluate(spec, observations).unwrap())
+    App::new(evaluate(spec, observations).unwrap()).with_project_command_hints()
 }

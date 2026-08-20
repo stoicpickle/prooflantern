@@ -8,7 +8,7 @@ expression: "render_screen(140, 40, false, \"save\")"
 ┌ ACCEPTED CORE JOURNEY ────────────────────────────────────────────────────────────────────────┐┌ INSPECTOR ──────────────────────────────┐
 │PROMISE                                                                                        ││◐ SAVE RECIPE LOCALLY                    │
 │“Save a recipe and find it again tomorrow.”                                                    ││BUILT / UNPROVEN   ◇ ACCEPTED            │
-│                                                                                               ││                                         │
+│                                                                                               ││ID  save                                 │
 │                         ┌──────────────────┐                                                  ││WHY                                      │
 │✓ ADD              ━━━━━━│◐ SAVE            │━━╸   ╳ REOPEN            ┄┄┄  ? FIND             ││Implementation evidence exists, but no   │
 │PROVEN                   │BUILT /           │      MISSING                  UNKNOWN            ││current passing proof is recorded.       │
@@ -30,14 +30,14 @@ expression: "render_screen(140, 40, false, \"save\")"
 │                                                                                               ││                                         │
 │                                                                                               ││                                         │
 │                                                                                               ││                                         │
-│                                                                                               ││                                         │
-│                                                                                               ││                                         │
 │                                                                                               ││PROOF NEEDED                             │
-│┌ JOURNEY BREAK ──────────────────────────────────────────────────────────────────────────────┐││Save a recipe, close the app, and confirm│
-││╳ REOPEN SAVED RECIPES                                                                       │││the record persists.                     │
+│                                                                                               ││Save a recipe, close the app, and confirm│
+│┌ JOURNEY BREAK ──────────────────────────────────────────────────────────────────────────────┐││the record persists.                     │
+││╳ REOPEN SAVED RECIPES   ID  reopen                                                          │││                                         │
 ││Required implementation is recorded absent. Downstream unresolved: Find a saved recipe.      │││                                         │
 ││PROOF NEEDED  Close app, reopen it, and confirm the saved recipe appears.                    │││                                         │
-│└─────────────────────────────────────────────────────────────────────────────────────────────┘││                                         │
+││RUN FROM MAP ROOT  proof-lantern explain reopen                                              │││RUN FROM MAP ROOT                        │
+│└─────────────────────────────────────────────────────────────────────────────────────────────┘││proof-lantern explain save               │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘└─────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │←→ NODE   G FOCUS   Q EXIT                                                                                                                │
