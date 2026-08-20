@@ -507,10 +507,6 @@ fn focus_for(
 }
 
 fn blocked_core_ids(id: &str, assessments: &[CapabilityAssessment]) -> Vec<String> {
-    let by_id: BTreeMap<_, _> = assessments
-        .iter()
-        .map(|item| (item.intent.id.as_str(), item))
-        .collect();
     let mut blocked = BTreeSet::new();
     let mut visited = BTreeSet::new();
     let mut frontier = vec![id];
@@ -527,10 +523,7 @@ fn blocked_core_ids(id: &str, assessments: &[CapabilityAssessment]) -> Vec<Strin
             }
         }
     }
-    blocked
-        .into_iter()
-        .filter(|candidate| by_id.contains_key(candidate.as_str()))
-        .collect()
+    blocked.into_iter().collect()
 }
 
 fn has_dependency_cycle(capabilities: &[CapabilityIntent]) -> bool {

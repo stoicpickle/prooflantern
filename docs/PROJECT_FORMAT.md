@@ -50,6 +50,11 @@ capabilities:
 Use portable IDs matching `[a-z][a-z0-9_-]*`. Core order values must be
 unique, but they do not need to be consecutive.
 
+If an existing map used spaces, uppercase letters, or other characters in an
+ID, rename that ID and update every reference to it. Check `pinned_keystone`,
+`depends_on`, supporting `supports` values, and each `capability_id` in
+`observations.json` or `manual-evidence.json`.
+
 ## Manual evidence
 
 Evidence changes the displayed state. The easiest way to record a current
