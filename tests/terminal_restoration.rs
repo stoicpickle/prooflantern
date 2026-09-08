@@ -226,7 +226,17 @@ fn read_terminal_output(
     let mut input_sent = false;
     let mut refresh_exit_sent = false;
     loop {
-        let bytes_read = reader.read(&mut buffer)?;
+        let bytes_read = match reader.read(&mut buffer) {
+            Ok(count) => count,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error)
+                if error.kind() == io::ErrorKind::BrokenPipe
+                    || (cfg!(unix) && error.raw_os_error() == Some(5)) =>
+            {
+                0
+            }
+            Err(error) => return Err(error),
+        };
         if bytes_read == 0 {
             return Ok(output);
         }
@@ -265,6 +275,25 @@ fn read_terminal_output(
                 writer.flush()?;
             }
             refresh_exit_sent = true;
+        }
+    }
+}
+
+#[test]
+fn terminal_reader_keeps_output_on_hangup_but_rejects_other_errors() {
+    struct EndError(io::ErrorKind);
+    impl Read for EndError {
+        fn read(&mut self, _buffer: &mut [u8]) -> io::Result<usize> {
+            Err(self.0.into())
+        }
+    }
+    for kind in [io::ErrorKind::BrokenPipe, io::ErrorKind::PermissionDenied] {
+        let mut reader = io::Cursor::new(b"terminal output").chain(EndError(kind));
+        let result = read_terminal_output(&mut reader, &mut Vec::new(), ExitPath::InjectedNormal);
+        if kind == io::ErrorKind::BrokenPipe {
+            assert_eq!(result.unwrap(), b"terminal output");
+        } else {
+            assert_eq!(result.unwrap_err().kind(), kind);
         }
     }
 }

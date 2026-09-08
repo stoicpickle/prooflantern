@@ -77,8 +77,15 @@ impl TestProject {
 
 impl Drop for TestProject {
     fn drop(&mut self) {
-        fs::remove_dir_all(&self.root).unwrap();
+        let _ = fs::remove_dir_all(&self.root);
     }
+}
+
+#[test]
+fn cleanup_is_safe_if_the_fixture_was_already_removed() {
+    let project = TestProject::new("cleanup", "Run the check.");
+    fs::remove_dir_all(&project.root).unwrap();
+    drop(project);
 }
 
 fn digest(bytes: &[u8]) -> String {

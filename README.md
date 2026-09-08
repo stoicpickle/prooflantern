@@ -183,8 +183,9 @@ This public preview proves that a small accepted journey can be rendered,
 inspected, and prioritized without turning source files into fake progress. It
 also exercises real `q`, Ctrl-C, error, and panic terminal restoration paths.
 
-It does not yet generate journeys, scan repositories, automatically watch files, execute
-project code, or edit intent inside the TUI. Core capabilities are rendered as
+Guided setup creates a journey from your answers; it does not invent one from
+your code. Proof Lantern does not scan repositories, automatically watch files,
+execute project code, or edit intent inside the TUI. Core capabilities are rendered as
 one ordered line; dependency-shaped journey visualization remains future work.
 
 ## Development
