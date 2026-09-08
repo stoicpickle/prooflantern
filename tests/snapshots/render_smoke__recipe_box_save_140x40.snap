@@ -12,7 +12,7 @@ expression: "render_screen(140, 40, false, \"save\")"
 │                         ┌──────────────────┐                                                  ││WHY                                      │
 │✓ ADD              ━━━━━━│◐ SAVE            │━━╸   ╳ REOPEN            ┄┄┄  ? FIND             ││Implementation evidence exists, but no   │
 │PROVEN                   │BUILT /           │      MISSING                  UNKNOWN            ││current passing proof is recorded.       │
-│                         │UNPROVEN          │                                                  ││EVIDENCE                                 │
+│                         │UNPROVEN          │                                                  ││EVIDENCE — NO CHANGE TRACKING            │
 │                         └──────────────────┘                                                  ││STATIC SCAN  Local save code appears to  │
 │                           └──── ✓ LOCAL DATABASE  SUPPORTING                                  ││exist.                                   │
 │                                                                                               ││src/storage.rs:1-8                       │
@@ -40,5 +40,5 @@ expression: "render_screen(140, 40, false, \"save\")"
 │└─────────────────────────────────────────────────────────────────────────────────────────────┘││proof-lantern explain save               │
 └───────────────────────────────────────────────────────────────────────────────────────────────┘└─────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│←→ NODE   G FOCUS   Q EXIT                                                                                                                │
+│←→ NODE   G FOCUS   R REFRESH   Q EXIT                                                                                                    │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

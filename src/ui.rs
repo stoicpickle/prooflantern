@@ -9,6 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     App,
+    app::RefreshStatus,
     model::{
         CapabilityAssessment, CapabilityRole, Claim, CurrentFocus, DisplayState, EvidenceSource,
         FocusKind, Freshness,
@@ -30,7 +31,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         area,
     );
     if area.width < MINIMUM_WIDTH || area.height < MINIMUM_HEIGHT {
-        render_minimum_size(frame, area, palette);
+        render_minimum_size(frame, area, app, palette);
         return;
     }
 
@@ -62,10 +63,31 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
             render_inspector(frame, drawer, app, palette);
         }
     }
-    render_footer(frame, frame_rows[2], wide, app.inspector_open(), palette);
+    render_footer(frame, frame_rows[2], wide, app, palette);
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
+    if let RefreshStatus::Failed { message } = app.refresh_status() {
+        frame.render_widget(
+            Paragraph::new(middle_truncate(
+                message,
+                usize::from(area.width.saturating_sub(2)),
+            ))
+            .style(Style::default().fg(palette.text))
+            .block(
+                instrument_block(
+                    " REFRESH FAILED / OUTDATED SNAPSHOT ",
+                    palette.warning,
+                    palette.background,
+                )
+                .title_bottom(
+                    " Fix file; R retry. Full error: proof-lantern next . from map root ",
+                ),
+            ),
+            area,
+        );
+        return;
+    }
     let focus = match app.project().current_focus() {
         CurrentFocus::Capability { capability, .. } => Some(capability),
         CurrentFocus::Complete { .. } => None,
@@ -87,9 +109,19 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette)
             ),
         ]);
     }
+    let title = match app.refresh_status() {
+        RefreshStatus::Idle => " PROJECT STATUS ".into(),
+        RefreshStatus::Refreshing => " REFRESHING / LAST LOADED MAP ".into(),
+        RefreshStatus::Updated { needs_recheck: 0 } => " REFRESHED / FILES RELOADED ".into(),
+        RefreshStatus::Updated { needs_recheck: 1 } => " REFRESHED / 1 STEP NEEDS RECHECK ".into(),
+        RefreshStatus::Updated { needs_recheck } => {
+            format!(" REFRESHED / {needs_recheck} STEPS NEED RECHECK ")
+        }
+        RefreshStatus::Failed { .. } => unreachable!("handled above"),
+    };
     frame.render_widget(
         Paragraph::new(Line::from(spans)).block(instrument_block(
-            " PROJECT STATUS ",
+            &title,
             palette.primary,
             palette.background,
         )),
@@ -546,7 +578,28 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
         rows[1],
     );
 
-    let mut evidence = vec![heading("EVIDENCE", palette)];
+    let evidence_heading = if capability.needs_recheck() {
+        "EVIDENCE — NEEDS RECHECK"
+    } else if capability.reasons.iter().any(|reason| {
+        reason
+            .fact
+            .receipt
+            .as_ref()
+            .is_some_and(|receipt| !receipt.inputs.is_empty())
+    }) {
+        "EVIDENCE — RECEIPTS"
+    } else if capability
+        .reasons
+        .iter()
+        .any(|reason| reason.fact.receipt.is_some())
+    {
+        "EVIDENCE — NO FILES TRACKED"
+    } else if !capability.reasons.is_empty() {
+        "EVIDENCE — NO CHANGE TRACKING"
+    } else {
+        "EVIDENCE"
+    };
+    let mut evidence = vec![heading(evidence_heading, palette)];
     let available = usize::from(rows[2].height.saturating_sub(1));
     if capability.reasons.is_empty() {
         evidence.push(Line::from(Span::styled(
@@ -581,7 +634,7 @@ fn render_inspector(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palet
                 EvidenceSource::StaticScan => "STATIC SCAN",
                 EvidenceSource::ImportedTestResult => "TEST RESULT",
             };
-            let freshness = if reason.fact.freshness == crate::model::Freshness::Stale {
+            let freshness = if reason.fact.effective_freshness() == crate::model::Freshness::Stale {
                 " [STALE]"
             } else {
                 ""
@@ -676,7 +729,7 @@ fn compact_conflict_line(capability: &CapabilityAssessment, width: usize) -> Opt
     let pair: Vec<_> = capability
         .reasons
         .iter()
-        .filter(|reason| reason.fact.freshness == Freshness::Current)
+        .filter(|reason| reason.fact.effective_freshness() == Freshness::Current)
         .take(2)
         .collect();
     let [left, right] = pair.as_slice() else {
@@ -749,14 +802,8 @@ fn project_explain_command(app: &App, capability_id: &str, width: usize) -> Opti
     (UnicodeWidthStr::width(command.as_str()) <= width).then_some(command)
 }
 
-fn render_footer(
-    frame: &mut Frame<'_>,
-    area: Rect,
-    wide: bool,
-    inspector_open: bool,
-    palette: Palette,
-) {
-    let inspect = if inspector_open {
+fn render_footer(frame: &mut Frame<'_>, area: Rect, wide: bool, app: &App, palette: Palette) {
+    let inspect = if app.inspector_open() {
         "E CLOSE"
     } else {
         "E INSPECT"
@@ -765,11 +812,11 @@ fn render_footer(
     if !wide {
         spans.extend([key(inspect, palette), Span::raw("   ")]);
     }
-    spans.extend([
-        key("G FOCUS", palette),
-        Span::raw("   "),
-        key("Q EXIT", palette),
-    ]);
+    spans.extend([key("G FOCUS", palette), Span::raw("   ")]);
+    if app.can_refresh() {
+        spans.extend([key("R REFRESH", palette), Span::raw("   ")]);
+    }
+    spans.push(key("Q EXIT", palette));
     let line = Line::from(spans);
     frame.render_widget(
         Paragraph::new(line).block(instrument_block(
@@ -781,8 +828,8 @@ fn render_footer(
     );
 }
 
-fn render_minimum_size(frame: &mut Frame<'_>, area: Rect, palette: Palette) {
-    let text = vec![
+fn render_minimum_size(frame: &mut Frame<'_>, area: Rect, app: &App, palette: Palette) {
+    let mut text = vec![
         Line::from(Span::styled(
             "PROOF LANTERN // DISPLAY LIMIT",
             Style::default().fg(palette.hot).bold(),
@@ -795,7 +842,24 @@ fn render_minimum_size(frame: &mut Frame<'_>, area: Rect, palette: Palette) {
         Line::from("Q EXIT"),
     ];
     let width = area.width.min(54);
-    let height = area.height.min(11);
+    match app.refresh_status() {
+        RefreshStatus::Failed { message } => {
+            text.extend([
+                Line::default(),
+                Line::from("REFRESH FAILED / OUTDATED SNAPSHOT")
+                    .style(Style::default().fg(palette.warning).bold()),
+                Line::from(middle_truncate(
+                    message,
+                    usize::from(width.saturating_sub(2)),
+                )),
+                Line::from("Fix the file; R retry."),
+            ]);
+        }
+        RefreshStatus::Refreshing => text.push(Line::from("REFRESHING / LAST LOADED MAP")),
+        _ if app.can_refresh() => text.push(Line::from("R REFRESH")),
+        _ => {}
+    }
+    let height = area.height.min((text.len() as u16 + 2).max(11));
     let centered = Rect::new(
         area.x + area.width.saturating_sub(width) / 2,
         area.y + area.height.saturating_sub(height) / 2,

@@ -10,9 +10,11 @@ use fs2::FileExt;
 
 use crate::{
     DisplayState, EvaluationError, evaluate,
-    load::{LoadError, load_project_files, merge_manual_evidence},
+    load::{LoadError, load_project_files, merge_manual_evidence, refresh_receipts},
     load_project,
-    model::{Claim, EvidenceFact, Freshness, ManualEvidenceRecord, ManualEvidenceSet},
+    model::{
+        Claim, EvidenceFact, Freshness, ManualEvidenceRecord, ManualEvidenceSet, ReceiptCheck,
+    },
 };
 
 const MANUAL_EVIDENCE_FILE: &str = "manual-evidence.json";
@@ -24,6 +26,7 @@ pub enum RecordError {
     UnknownCapability(String),
     BlankSummary,
     Conflict(String),
+    Receipt(String),
     Serialize(serde_json::Error),
     Lock { path: String, source: io::Error },
     Write { path: String, source: io::Error },
@@ -36,6 +39,7 @@ impl fmt::Display for RecordError {
             Self::Evaluation(source) => write!(formatter, "{source}"),
             Self::UnknownCapability(id) => write!(formatter, "unknown capability {id}"),
             Self::BlankSummary => write!(formatter, "evidence summary must not be blank"),
+            Self::Receipt(reason) => write!(formatter, "could not record receipt: {reason}"),
             Self::Conflict(id) => write!(
                 formatter,
                 "recording this evidence would leave {id} CONFLICTING; reconcile current evidence in project.yml or observations.json first"
@@ -66,7 +70,10 @@ impl Error for RecordError {
             Self::Evaluation(source) => Some(source),
             Self::Serialize(source) => Some(source),
             Self::Lock { source, .. } | Self::Write { source, .. } => Some(source),
-            Self::UnknownCapability(_) | Self::BlankSummary | Self::Conflict(_) => None,
+            Self::UnknownCapability(_)
+            | Self::BlankSummary
+            | Self::Conflict(_)
+            | Self::Receipt(_) => None,
         }
     }
 }
@@ -98,6 +105,18 @@ pub fn record_manual_evidence(
     claim: Claim,
     summary: &str,
 ) -> Result<RecordedEvidence, RecordError> {
+    record_manual_evidence_with_inputs(root, capability_id, claim, summary, &[])
+}
+
+/// Record a human observation with an explicit, bounded set of input file fingerprints.
+/// This captures recording-time context; it does not run or authenticate a test.
+pub fn record_manual_evidence_with_inputs(
+    root: impl AsRef<Path>,
+    capability_id: &str,
+    claim: Claim,
+    summary: &str,
+    inputs: &[String],
+) -> Result<RecordedEvidence, RecordError> {
     if summary.trim().is_empty() {
         return Err(RecordError::BlankSummary);
     }
@@ -108,7 +127,8 @@ pub fn record_manual_evidence(
     let (loaded_project, loaded_observations) = load_project(root.as_ref())?;
     evaluate(loaded_project, loaded_observations)?;
 
-    let (mut project, observations, mut manual, project_dir) = load_project_files(root.as_ref())?;
+    let (mut project, mut observations, mut manual, project_dir) =
+        load_project_files(root.as_ref())?;
     let Some(capability) = project
         .capabilities
         .iter()
@@ -117,6 +137,9 @@ pub fn record_manual_evidence(
         return Err(RecordError::UnknownCapability(capability_id.to_owned()));
     };
     let capability_label = capability.label.clone();
+    let receipt =
+        crate::receipts::capture_receipt(&project_dir.root, &capability.proof_needed, inputs)
+            .map_err(RecordError::Receipt)?;
 
     let mut superseded_records = 0;
     for record in &mut manual.records {
@@ -135,10 +158,24 @@ pub fn record_manual_evidence(
             freshness: Freshness::Current,
             summary: summary.trim().to_owned(),
             location: None,
+            receipt: Some(receipt),
+            receipt_check: ReceiptCheck::Unchecked,
         },
     });
 
     merge_manual_evidence(&mut project, &manual)?;
+    refresh_receipts(&project_dir.root, &mut project, &mut observations)?;
+    let new_fact = project
+        .capabilities
+        .iter()
+        .find(|item| item.id == capability_id)
+        .and_then(|item| item.manual_evidence.last())
+        .expect("new record was merged into its capability");
+    if let Some(reason) = new_fact.recheck_reason() {
+        return Err(RecordError::Receipt(format!(
+            "inputs changed while recording: {reason}; try again"
+        )));
+    }
     let evaluated = evaluate(project, observations)?;
     let display = evaluated
         .capability(capability_id)
@@ -186,15 +223,22 @@ impl EvidenceLock {
                 path: lock_path.display().to_string(),
                 source,
             })?;
+        // Elect one creator, then open the persistent lock without creation.
+        // Concurrent create-or-open returned ENOENT on macOS in the subprocess
+        // regression. Never replace or unlink this file: all writers must lock
+        // the same inode, including the process that first created it.
         let file = config
             .open_with(
                 ".record.lock",
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .truncate(false),
+                OpenOptions::new().read(true).write(true).create_new(true),
             )
+            .or_else(|source| {
+                if source.kind() == io::ErrorKind::AlreadyExists {
+                    config.open_with(".record.lock", OpenOptions::new().read(true).write(true))
+                } else {
+                    Err(source)
+                }
+            })
             .map_err(|source| RecordError::Lock {
                 path: lock_path.display().to_string(),
                 source,

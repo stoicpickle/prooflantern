@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::Path,
     process,
     sync::{
@@ -13,7 +13,8 @@ use clap::Parser;
 use proof_lantern::{
     App, CurrentFocus, DisplayState, EvaluatedProject, EvidenceSource, Freshness,
     cli::{Cli, Invocation},
-    evaluate, initialize_project, load_demo, load_project, record_manual_evidence,
+    evaluate, initialize_guided, initialize_project, load_demo, load_project,
+    record_manual_evidence_with_inputs,
 };
 
 #[cfg(feature = "terminal-test-hooks")]
@@ -37,6 +38,26 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let invocation = Cli::parse().invocation();
     match invocation {
+        Invocation::GuidedInit(path) => {
+            if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+                return Err("guided setup needs interactive stdin and stdout. Run `proof-lantern init --guided .` in a terminal, or use `proof-lantern init .` for a noninteractive starter.".into());
+            }
+            let initialized =
+                initialize_guided(&path, &mut io::stdin().lock(), &mut io::stdout().lock())?;
+            if let Some(initialized) = initialized {
+                println!("Created {}", initialized.project_file.display());
+                println!("From that project folder:");
+                println!("  proof-lantern .                 View the map (100 columns x 30 rows)");
+                println!("  proof-lantern next .            See the next useful check");
+                println!("  proof-lantern explain step-1 .  Read your first step and its check");
+                println!("After a real check, record what you observed (replace the summary):");
+                println!("  proof-lantern record step-1 passed --summary \"what worked\" .");
+                println!(
+                    "Use failed instead of passed if the check failed. Nothing is proven just by saving this map."
+                );
+            }
+            return Ok(());
+        }
         Invocation::Init(path) => {
             let initialized = initialize_project(&path)?;
             println!("Created {}", initialized.project_file.display());
@@ -69,10 +90,12 @@ fn run() -> Result<(), Box<dyn Error>> {
             node,
             claim,
             summary,
+            inputs,
             path,
         } => {
             ensure_known_capability(&load_root(&path)?, &node)?;
-            let recorded = record_manual_evidence(&path, &node, claim.into(), &summary)?;
+            let recorded =
+                record_manual_evidence_with_inputs(&path, &node, claim.into(), &summary, &inputs)?;
             println!(
                 "Recorded {} for {} in {}",
                 recorded.display.label(),
@@ -85,19 +108,32 @@ fn run() -> Result<(), Box<dyn Error>> {
                     recorded.superseded_records
                 );
             }
+            if inputs.is_empty() {
+                println!(
+                    "Receipt saved. No input files tracked; code changes will not be detected. Use --input FILE to track selected files."
+                );
+            } else {
+                println!(
+                    "Receipt saved for selected inputs and the required check. Hashes track changes; this remains a human observation, not an executed test."
+                );
+            }
             println!("Next: run `proof-lantern next .` from this map root.");
             return Ok(());
         }
         Invocation::Demo | Invocation::Project(_) => {}
     }
 
-    let (project, project_command_hints) = match invocation {
+    let (project, project_root) = match invocation {
         Invocation::Demo => {
             let (spec, observations) = load_demo()?;
-            (evaluate(spec, observations)?, false)
+            (evaluate(spec, observations)?, None)
         }
-        Invocation::Project(path) => (load_root(path)?, true),
+        Invocation::Project(path) => {
+            let (spec, observations, root) = proof_lantern::load::load_project_with_root(path)?;
+            (evaluate(spec, observations)?, Some(root))
+        }
         Invocation::Init(_)
+        | Invocation::GuidedInit(_)
         | Invocation::Next(_)
         | Invocation::Explain { .. }
         | Invocation::Record { .. } => unreachable!(),
@@ -106,8 +142,8 @@ fn run() -> Result<(), Box<dyn Error>> {
     let signal_flag = Arc::clone(&interrupted);
     ctrlc::set_handler(move || signal_flag.store(true, Ordering::Relaxed))?;
     let mut app = App::new(project).with_interrupt_flag(interrupted);
-    if project_command_hints {
-        app = app.with_project_command_hints();
+    if let Some(root) = project_root {
+        app = app.with_project_root(root)?;
     }
 
     #[cfg(feature = "terminal-test-hooks")]
@@ -226,6 +262,10 @@ fn print_record_template(
     writeln!(
         output,
         "CLAIM can be built, missing, passed, or failed; unresolved conflicts are rejected."
+    )?;
+    writeln!(
+        output,
+        "Optional: add --input FILE before -- for each file you checked to detect later changes."
     )
 }
 
@@ -250,7 +290,7 @@ fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
                 EvidenceSource::StaticScan => "STATIC SCAN",
                 EvidenceSource::ImportedTestResult => "IMPORTED TEST RESULT",
             };
-            let freshness = match reason.fact.freshness {
+            let freshness = match reason.fact.effective_freshness() {
                 Freshness::Current => "CURRENT",
                 Freshness::Stale => "STALE",
             };
@@ -265,6 +305,40 @@ fn print_explanation(project: &EvaluatedProject, node: &str) -> io::Result<()> {
             writeln!(output, "    Freshness: {freshness}")?;
             writeln!(output, "    Summary: {}", reason.fact.summary)?;
             writeln!(output, "    Location: {location}")?;
+            match &reason.fact.receipt {
+                None => writeln!(
+                    output,
+                    "    Change tracking: not recorded (legacy evidence)."
+                )?,
+                Some(receipt) => {
+                    writeln!(output, "    Recorded at: {}", receipt.recorded_at)?;
+                    writeln!(output, "    Check recorded: {}", receipt.proof_needed)?;
+                    if receipt.inputs.is_empty() {
+                        writeln!(
+                            output,
+                            "    Tracked inputs: none; code changes are not detected."
+                        )?;
+                    } else {
+                        writeln!(output, "    Tracked inputs (SHA-256):")?;
+                        for input in &receipt.inputs {
+                            writeln!(output, "      {}  {}", input.path, input.sha256)?;
+                        }
+                    }
+                    if let Some(message) = reason.fact.recheck_reason() {
+                        writeln!(output, "    NEEDS RECHECK: {message}")?;
+                    } else if reason.fact.freshness == Freshness::Stale {
+                        writeln!(
+                            output,
+                            "    Receipt: historical; inputs were not rechecked."
+                        )?;
+                    } else {
+                        writeln!(
+                            output,
+                            "    Receipt: recorded check and selected inputs match; result is not independently authenticated."
+                        )?;
+                    }
+                }
+            }
         }
     }
     writeln!(output, "Proof needed: {}", capability.intent.proof_needed)?;

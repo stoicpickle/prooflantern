@@ -1,10 +1,15 @@
-use std::{error::Error, fmt, io, path::Path};
+use std::{
+    error::Error,
+    fmt, io,
+    path::{Path, PathBuf},
+};
 
 use cap_std::fs::Dir;
 
 use crate::{
     model::{EvidenceFact, Freshness, ManualEvidenceSet, ObservationSet, ProjectSpec},
     project_fs::ProjectDirectory,
+    receipts::check_receipt,
 };
 
 const DEMO_PROJECT_YAML: &str = include_str!("../fixtures/recipe_box/.proof-lantern/project.yml");
@@ -32,6 +37,10 @@ pub enum LoadError {
     EvidenceLocation {
         capability_id: String,
         path: String,
+        reason: String,
+    },
+    Receipt {
+        capability_id: String,
         reason: String,
     },
 }
@@ -66,6 +75,13 @@ impl fmt::Display for LoadError {
                 formatter,
                 "evidence for {capability_id} is not inspectable at {path}: {reason}"
             ),
+            Self::Receipt {
+                capability_id,
+                reason,
+            } => write!(
+                formatter,
+                "evidence receipt for {capability_id} is invalid: {reason}"
+            ),
         }
     }
 }
@@ -78,16 +94,62 @@ impl Error for LoadError {
             Self::ProjectYaml(source) => Some(source),
             Self::ObservationsJson(source) => Some(source),
             Self::ManualEvidenceJson(source) => Some(source),
-            Self::ManualEvidence { .. } | Self::EvidenceLocation { .. } => None,
+            Self::ManualEvidence { .. } | Self::EvidenceLocation { .. } | Self::Receipt { .. } => {
+                None
+            }
         }
     }
 }
 
 pub fn load_project(root: impl AsRef<Path>) -> Result<(ProjectSpec, ObservationSet), LoadError> {
-    let (mut project, observations, manual, project_dir) = load_project_files(root)?;
+    load_project_with_root(root).map(|(project, observations, _)| (project, observations))
+}
+
+/// Return the root used for this successful load, without changing user-facing
+/// diagnostics for relative paths. The TUI binds later reloads to this root.
+pub fn load_project_with_root(
+    root: impl AsRef<Path>,
+) -> Result<(ProjectSpec, ObservationSet, PathBuf), LoadError> {
+    let (mut project, mut observations, manual, project_dir) = load_project_files(root)?;
     merge_manual_evidence(&mut project, &manual)?;
+    refresh_receipts(&project_dir.root, &mut project, &mut observations)?;
     validate_current_evidence_locations(&project_dir.root, &project, &observations)?;
-    Ok((project, observations))
+    Ok((project, observations, project_dir.canonical_root))
+}
+
+pub(crate) fn refresh_receipts(
+    root: &Dir,
+    project: &mut ProjectSpec,
+    observations: &mut ObservationSet,
+) -> Result<(), LoadError> {
+    for capability in &mut project.capabilities {
+        for fact in &mut capability.manual_evidence {
+            check_receipt(root, &capability.proof_needed, fact).map_err(|reason| {
+                LoadError::Receipt {
+                    capability_id: capability.id.clone(),
+                    reason,
+                }
+            })?;
+        }
+    }
+    for observation in &mut observations.observations {
+        let Some(capability) = project
+            .capabilities
+            .iter()
+            .find(|capability| capability.id == observation.capability_id)
+        else {
+            // Model validation owns unknown capability references, regardless
+            // of whether an observation carries a receipt.
+            continue;
+        };
+        check_receipt(root, &capability.proof_needed, &mut observation.fact).map_err(|reason| {
+            LoadError::Receipt {
+                capability_id: observation.capability_id.clone(),
+                reason,
+            }
+        })?;
+    }
+    Ok(())
 }
 
 pub(crate) fn load_project_files(
@@ -214,7 +276,7 @@ fn validate_current_evidence_locations(
         for fact in capability
             .manual_evidence
             .iter()
-            .filter(|fact| fact.freshness == Freshness::Current)
+            .filter(|fact| fact.effective_freshness() == Freshness::Current)
         {
             validate_fact_location(root, &capability.id, fact)?;
         }
@@ -222,7 +284,7 @@ fn validate_current_evidence_locations(
     for observation in observations
         .observations
         .iter()
-        .filter(|observation| observation.fact.freshness == Freshness::Current)
+        .filter(|observation| observation.fact.effective_freshness() == Freshness::Current)
     {
         validate_fact_location(root, &observation.capability_id, &observation.fact)?;
     }

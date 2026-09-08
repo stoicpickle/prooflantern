@@ -6,6 +6,66 @@ use proof_lantern::{
 use ratatui::{Terminal, backend::TestBackend};
 
 #[test]
+fn guided_first_map_shows_unknown_steps_and_an_actionable_check() {
+    for (width, height) in [(100, 30), (140, 40)] {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/guided_setup");
+        let overview = render_app_screen(width, height, false, "step-1", project_app(root.clone()));
+        assert!(overview.contains("NEEDS EVIDENCE"), "{overview}");
+        let screen = render_app_screen(width, height, true, "step-1", project_app(root));
+        assert!(screen.contains("UNKNOWN"), "{screen}");
+        assert!(screen.contains("ID  step-1"), "{screen}");
+        assert!(screen.contains("The entered recipe appears."), "{screen}");
+        assert!(screen.contains("proof-lantern explain step-1"), "{screen}");
+        assert!(!screen.contains("CORE JOURNEY PROVEN"), "{screen}");
+    }
+}
+
+#[test]
+fn changed_receipt_is_visible_in_compact_and_wide_inspectors() {
+    for (width, height) in [(100, 30), (140, 40)] {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/receipt_change");
+        let screen = render_app_screen(width, height, true, "reopen", project_app(root));
+        assert!(screen.contains("NEEDS RECHECK"), "{screen}");
+        assert!(
+            screen.contains("Recorded evidence needs rechecking"),
+            "{screen}"
+        );
+        assert!(screen.contains("BUILT /"), "{screen}");
+        assert!(!screen.contains("CORE JOURNEY PROVEN"), "{screen}");
+        assert!(screen.contains("proof-lantern explain reopen"), "{screen}");
+        if width == 100 {
+            insta::assert_snapshot!("receipt_change_100x30", screen);
+        }
+    }
+}
+
+#[test]
+fn independent_current_proof_is_not_overruled_by_an_old_receipt() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/receipt_change");
+    let (mut spec, observations) = load_project(root).unwrap();
+    spec.capabilities[0].manual_evidence.push(EvidenceFact {
+        claim: Claim::VerificationPassed,
+        freshness: Freshness::Current,
+        summary: "A separate current observation proves this step.".into(),
+        location: None,
+        receipt: None,
+        receipt_check: Default::default(),
+    });
+    let evaluated = evaluate(spec, observations).unwrap();
+    assert!(evaluated.warnings.is_empty(), "{:?}", evaluated.warnings);
+    assert!(!evaluated.capability("reopen").unwrap().needs_recheck());
+    let screen = render_app_screen(
+        100,
+        30,
+        true,
+        "reopen",
+        App::new(evaluated).with_project_command_hints(),
+    );
+    assert!(screen.contains("PROVEN"), "{screen}");
+    assert!(!screen.contains("NEEDS RECHECK"), "{screen}");
+}
+
+#[test]
 fn recipe_box_renders_the_promise_broken_path_and_current_focus() {
     for (width, height) in [(100, 30), (140, 40)] {
         let screen = render_screen(width, height, false, "reopen");
@@ -166,6 +226,8 @@ fn compact_inspector_reserves_proof_space_when_evidence_is_long() {
         reopen.manual_evidence.insert(
             0,
             EvidenceFact {
+                receipt: None,
+                receipt_check: Default::default(),
                 claim: Claim::VerificationPassed,
                 freshness: Freshness::Stale,
                 summary: summary.into(),
@@ -204,12 +266,16 @@ fn compact_inspector_pairs_pass_and_fail_before_duplicate_history() {
         .unwrap();
     add.manual_evidence.extend([
         EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A duplicate current add check passed.".into(),
             location: None,
         },
         EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The current add check failed.".into(),
@@ -237,12 +303,16 @@ fn compact_inspector_pairs_passing_and_missing_evidence() {
         .unwrap();
     reopen.manual_evidence.extend([
         EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A current reopen check passed.".into(),
             location: None,
         },
         EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A duplicate current reopen check passed.".into(),
@@ -354,6 +424,8 @@ fn pinned_recipe_box_app(capability_id: &str) -> App {
 }
 
 fn project_app(root: PathBuf) -> App {
-    let (spec, observations) = load_project(root).unwrap();
-    App::new(evaluate(spec, observations).unwrap()).with_project_command_hints()
+    let (spec, observations) = load_project(&root).unwrap();
+    App::new(evaluate(spec, observations).unwrap())
+        .with_project_root(root)
+        .unwrap()
 }

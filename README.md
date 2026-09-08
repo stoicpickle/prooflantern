@@ -50,17 +50,26 @@ After installing the command above, open the folder containing your own project
 and run:
 
 ```sh
-proof-lantern init .
+proof-lantern init --guided .
 ```
 
-This creates one commented file at `.proof-lantern/project.yml`. It never
-overwrites an existing map. Open the file and replace its promise and three
-starter capabilities with the shortest journey your user needs to complete,
-then run:
+Guided setup asks for the project's name, the useful result a user should reach,
+and 3–5 core steps with a visible check for each. It previews the journey before
+saving. Choose `edit` to revise your answers (Enter keeps the previous answer),
+`save` to create `.proof-lantern/project.yml`, or `cancel` to leave without saving.
+You can also type `:cancel` at any question. Nothing is created before Save, and
+an existing map is never overwritten. Setup does not scan or run your code.
+
+Then view your map:
 
 ```sh
 proof-lantern .
 ```
+
+Prefer editing a file? `proof-lantern init .` still creates the original commented
+starter without questions, including when output is redirected. Replace its
+promise and placeholder steps in `.proof-lantern/project.yml` before using it.
+The guided mode needs interactive input and output; it is not a piped-input API.
 
 New capabilities begin as `UNKNOWN`. That does not mean they are broken. It
 means you have recorded your intention but have not yet recorded technical
@@ -71,13 +80,35 @@ After performing the observable check described by `proof_needed`, record what
 you actually saw:
 
 ```sh
-proof-lantern record start passed --summary "I completed the visible starting step." .
+proof-lantern record step-1 passed --summary "I completed the visible starting step." .
 ```
+
+Guided maps use IDs `step-1`, `step-2`, and so on. Use the ID from your own map:
+the plain starter uses `start`, `outcome`, and `return`. `proof-lantern next .`
+shows the next step's ID and command; `proof-lantern explain step-1 .` shows its
+full check. If a check failed, record `failed`, not `passed`.
 
 The claim can be `built`, `missing`, `passed`, or `failed`. This command writes
 `.proof-lantern/manual-evidence.json`; it never rewrites your commented
 `project.yml`. When you record a newer result in the same category, the older
 manual result stays visible as `STALE` history rather than being deleted.
+
+To notice when the files you checked change, attach their paths when recording:
+
+```sh
+proof-lantern record step-1 passed --summary "I completed the starting step." --input src/main.rs .
+```
+
+Replace `src/main.rs` with a file from your project; repeat `--input` for each
+relevant source, test, configuration, or result file. Paths are relative to the
+map root. The receipt records the time, required check, and selected file hashes.
+If those bytes or the required check change, refreshing or reopening the map shows
+`NEEDS RECHECK` and the old result no longer counts as current proof.
+
+This remains a human observation: Proof Lantern does not run or authenticate
+the check. Files not selected are not tracked. Without `--input`, the receipt
+tracks only the required check text; older evidence without receipts remains
+usable and is labeled `NO CHANGE TRACKING`.
 
 See [Writing a project map](docs/PROJECT_FORMAT.md) for copyable evidence,
 supporting-capability, and optional-capability examples.
@@ -101,6 +132,7 @@ Inside the TUI:
 - `←` / `→` or `h` / `l`: select a capability
 - `e` or `Enter`: open or close the compact inspector
 - `g`: return to the current focus
+- `r`: reload a project map and recheck receipts without closing it
 - `q` or `Ctrl-C`: exit and restore the terminal
 
 Plain terminal commands expose the same evaluated model:
@@ -111,6 +143,18 @@ proof-lantern explain capability-id .
 ```
 
 At 128×36 and above, the inspector remains visible beside the journey.
+
+After recording evidence in another terminal or editing your map, press `r`.
+Refresh preserves the selected step and inspector; if that step was removed,
+selection moves to the new current focus. The header confirms the reload and
+counts steps needing recheck. It does not automatically watch files or run tests.
+
+If a file is missing or invalid, `REFRESH FAILED / OUTDATED SNAPSHOT` marks the
+last successfully loaded map. Fix the source file and press `r` again. For the
+full error, run `proof-lantern next .` from the map's project folder. A failed
+reload does not change the saved files or silently present the old map as current.
+Navigation and quitting remain available during refresh. The built-in demo has
+no project folder to reload, so it does not offer `r`.
 
 ## Evidence boundary
 
@@ -139,8 +183,9 @@ This public preview proves that a small accepted journey can be rendered,
 inspected, and prioritized without turning source files into fake progress. It
 also exercises real `q`, Ctrl-C, error, and panic terminal restoration paths.
 
-It does not yet generate journeys, scan repositories, refresh evidence, execute
-project code, or edit intent inside the TUI. Core capabilities are rendered as
+Guided setup creates a journey from your answers; it does not invent one from
+your code. Proof Lantern does not scan repositories, automatically watch files,
+execute project code, or edit intent inside the TUI. Core capabilities are rendered as
 one ordered line; dependency-shaped journey visualization remains future work.
 
 ## Development

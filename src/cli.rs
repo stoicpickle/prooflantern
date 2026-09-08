@@ -24,10 +24,13 @@ pub struct Cli {
 pub enum Command {
     /// Open the built-in Recipe Box prototype.
     Demo,
-    /// Create a commented starter map without overwriting existing work.
+    /// Create a starter map, optionally with a guided interview; never overwrite.
     Init {
         #[arg(value_name = "PATH", default_value = ".")]
         path: PathBuf,
+        /// Ask about the user journey and preview it before saving (interactive terminal only).
+        #[arg(long)]
+        guided: bool,
     },
     /// Print the deterministic current focus without opening the TUI.
     Next {
@@ -48,7 +51,7 @@ pub enum Command {
     },
     /// Record one human-observed fact without rewriting project.yml.
     #[command(
-        after_help = "Examples:\n  proof-lantern record reopen passed --summary \"The recipe appeared after reopening.\" .\n  proof-lantern record save failed --summary \"The saved recipe disappeared after restart.\" ."
+        after_help = "Examples:\n  proof-lantern record reopen passed --summary \"The recipe appeared after reopening.\" .\n  proof-lantern record save failed --summary \"The saved recipe disappeared after restart.\" .\n  proof-lantern record reopen passed --summary \"I checked reopening.\" --input src/storage.rs --input tests/reopen.rs .\n\nReceipts capture recording-time context, not test execution. Without --input, code changes are not detected."
     )]
     Record {
         /// Capability ID from .proof-lantern/project.yml (for example, reopen).
@@ -60,6 +63,9 @@ pub enum Command {
         /// A short description of what you observed.
         #[arg(long, value_name = "TEXT")]
         summary: String,
+        /// File to fingerprint, relative to PATH; repeat for each input (no automatic scanning).
+        #[arg(long = "input", value_name = "FILE")]
+        inputs: Vec<String>,
         /// Project directory containing .proof-lantern/project.yml.
         #[arg(value_name = "PATH", default_value = ".")]
         path: PathBuf,
@@ -94,6 +100,7 @@ pub enum Invocation {
     Project(PathBuf),
     Demo,
     Init(PathBuf),
+    GuidedInit(PathBuf),
     Next(PathBuf),
     Explain {
         node: String,
@@ -103,6 +110,7 @@ pub enum Invocation {
         node: String,
         claim: RecordClaim,
         summary: String,
+        inputs: Vec<String>,
         path: PathBuf,
     },
 }
@@ -111,7 +119,14 @@ impl Cli {
     pub fn invocation(self) -> Invocation {
         match (self.command, self.path) {
             (Some(Command::Demo), _) => Invocation::Demo,
-            (Some(Command::Init { path }), _) => Invocation::Init(path),
+            (Some(Command::Init { path, guided: true }), _) => Invocation::GuidedInit(path),
+            (
+                Some(Command::Init {
+                    path,
+                    guided: false,
+                }),
+                _,
+            ) => Invocation::Init(path),
             (Some(Command::Next { path }), _) => Invocation::Next(path),
             (Some(Command::Explain { node, path }), _) => Invocation::Explain { node, path },
             (
@@ -119,6 +134,7 @@ impl Cli {
                     node,
                     claim,
                     summary,
+                    inputs,
                     path,
                 }),
                 _,
@@ -126,6 +142,7 @@ impl Cli {
                 node,
                 claim,
                 summary,
+                inputs,
                 path,
             },
             (None, path) => Invocation::Project(path.unwrap_or_else(|| ".".into())),
@@ -177,8 +194,34 @@ mod tests {
                 node: "save".into(),
                 claim: RecordClaim::Passed,
                 summary: "Save and reopen worked".into(),
+                inputs: Vec::new(),
                 path: "fixtures/recipe_box".into(),
             }
+        );
+    }
+
+    #[test]
+    fn guided_setup_is_opt_in_and_accepts_either_flag_position() {
+        for arguments in [
+            vec!["proof-lantern", "init", "--guided", "my-project"],
+            vec!["proof-lantern", "init", "my-project", "--guided"],
+        ] {
+            assert_eq!(
+                Cli::try_parse_from(arguments).unwrap().invocation(),
+                Invocation::GuidedInit("my-project".into())
+            );
+        }
+        assert_eq!(
+            Cli::try_parse_from(["proof-lantern", "init", "--guided"])
+                .unwrap()
+                .invocation(),
+            Invocation::GuidedInit(".".into())
+        );
+        assert_eq!(
+            Cli::try_parse_from(["proof-lantern", "init"])
+                .unwrap()
+                .invocation(),
+            Invocation::Init(".".into())
         );
     }
 }

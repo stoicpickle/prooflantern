@@ -1,0 +1,32 @@
+# Human-owned journey, confirmed in guided setup.
+# UNKNOWN means no evidence yet, not broken.
+# Record observations with `proof-lantern record`; keep intent here.
+
+schema_version: 1
+project:
+  name: Recipe Box
+  promise: Save a recipe and find it tomorrow.
+capabilities:
+- id: step-1
+  label: Add a recipe
+  role:
+    kind: core
+    order: 1
+  depends_on: []
+  proof_needed: The entered recipe appears.
+- id: step-2
+  label: Save the recipe
+  role:
+    kind: core
+    order: 2
+  depends_on:
+  - step-1
+  proof_needed: The app reports it saved.
+- id: step-3
+  label: Reopen the recipe
+  role:
+    kind: core
+    order: 3
+  depends_on:
+  - step-2
+  proof_needed: Close and reopen; the recipe remains.

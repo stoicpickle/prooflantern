@@ -131,6 +131,7 @@ fn next_command_reports_the_state_sensitive_focus_and_proof_needed() {
                 "reopen CLAIM\n",
                 "CLAIM can be built, missing, passed, or failed; ",
                 "unresolved conflicts are rejected.\n",
+                "Optional: add --input FILE before -- for each file you checked to detect later changes.\n",
             ),
             project_root.display(),
         )
@@ -167,10 +168,12 @@ fn explain_command_prints_complete_evidence_metadata() {
             "    Freshness: CURRENT\n",
             "    Summary: The recorded add-recipe check passed.\n",
             "    Location: artifacts/test-results.json\n",
+            "    Change tracking: not recorded (legacy evidence).\n",
             "  - Source: STATIC SCAN\n",
             "    Freshness: CURRENT\n",
             "    Summary: Recipe creation code is present.\n",
             "    Location: src/add_recipe.rs:1-5\n",
+            "    Change tracking: not recorded (legacy evidence).\n",
             "Proof needed: Create a recipe and confirm it appears in the current session.\n",
         )
     );

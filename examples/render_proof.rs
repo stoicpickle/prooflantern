@@ -1,4 +1,11 @@
-use std::{env, error::Error, fmt::Write as _, fs, path::PathBuf};
+use std::{
+    env,
+    error::Error,
+    fmt::Write as _,
+    fs,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use proof_lantern::{App, evaluate, load_project, ui};
 use ratatui::{
@@ -28,11 +35,29 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box"));
 
-    let (spec, observations) = load_project(project_root)?;
-    let mut app = App::new(evaluate(spec, observations)?).with_project_command_hints();
+    let (spec, observations) = load_project(&project_root)?;
+    let mut app = App::new(evaluate(spec, observations)?).with_project_root(&project_root)?;
     let _ = app.select_id(&selected);
     if inspector {
         app.toggle_inspector();
+    }
+
+    // Optional proof flow: pause after the initial snapshot, allowing an isolated
+    // fixture to be edited externally, then exercise the real refresh controller.
+    // Normal renders never wait or mutate project files.
+    if env::args().nth(7).as_deref() == Some("refresh") {
+        eprintln!(
+            "Initial snapshot loaded. Edit the isolated fixture if needed, then press Enter to refresh and render."
+        );
+        std::io::stdin().read_line(&mut String::new())?;
+        app.request_refresh();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !app.poll_refresh() {
+            if Instant::now() >= deadline {
+                return Err("refresh timed out".into());
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 
     let backend = TestBackend::new(width, height);
