@@ -281,16 +281,28 @@ fn read_terminal_output(
 
 #[test]
 fn terminal_reader_keeps_output_on_hangup_but_rejects_other_errors() {
-    struct EndError(io::ErrorKind);
+    struct EndError(Option<io::Error>);
     impl Read for EndError {
         fn read(&mut self, _buffer: &mut [u8]) -> io::Result<usize> {
-            Err(self.0.into())
+            Err(self
+                .0
+                .take()
+                .expect("reader stops after the terminal error"))
         }
     }
-    for kind in [io::ErrorKind::BrokenPipe, io::ErrorKind::PermissionDenied] {
-        let mut reader = io::Cursor::new(b"terminal output").chain(EndError(kind));
+    let cases = [
+        (io::Error::from(io::ErrorKind::BrokenPipe), true),
+        (io::Error::from(io::ErrorKind::PermissionDenied), false),
+        #[cfg(unix)]
+        (io::Error::from_raw_os_error(5), true), // EIO is a Unix PTY hangup.
+        #[cfg(windows)]
+        (io::Error::from_raw_os_error(5), false), // Access denied is not EOF.
+    ];
+    for (error, is_hangup) in cases {
+        let kind = error.kind();
+        let mut reader = io::Cursor::new(b"terminal output").chain(EndError(Some(error)));
         let result = read_terminal_output(&mut reader, &mut Vec::new(), ExitPath::InjectedNormal);
-        if kind == io::ErrorKind::BrokenPipe {
+        if is_hangup {
             assert_eq!(result.unwrap(), b"terminal output");
         } else {
             assert_eq!(result.unwrap_err().kind(), kind);
