@@ -119,6 +119,57 @@ pub struct EvidenceFact {
     pub summary: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<EvidenceLocation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<EvidenceReceipt>,
+    /// Derived by the project loader, never trusted from an evidence file.
+    #[serde(skip)]
+    pub receipt_check: ReceiptCheck,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceReceipt {
+    pub recorded_at: String,
+    pub proof_needed: String,
+    pub inputs: Vec<ReceiptInput>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReceiptInput {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum ReceiptCheck {
+    #[default]
+    Unchecked,
+    Matched,
+    NeedsRecheck(String),
+}
+
+impl EvidenceFact {
+    pub fn effective_freshness(&self) -> Freshness {
+        if self.freshness == Freshness::Stale
+            || (self.receipt.is_some() && self.receipt_check != ReceiptCheck::Matched)
+        {
+            Freshness::Stale
+        } else {
+            Freshness::Current
+        }
+    }
+
+    pub fn recheck_reason(&self) -> Option<&str> {
+        if self.freshness == Freshness::Stale || self.receipt.is_none() {
+            return None;
+        }
+        match &self.receipt_check {
+            ReceiptCheck::Unchecked => Some("Receipt has not been checked against this project."),
+            ReceiptCheck::Matched => None,
+            ReceiptCheck::NeedsRecheck(reason) => Some(reason),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -232,7 +283,20 @@ impl CapabilityAssessment {
             .unwrap_or(&self.intent.label)
     }
 
-    pub const fn why(&self) -> &'static str {
+    pub fn needs_recheck(&self) -> bool {
+        matches!(
+            self.display,
+            DisplayState::Unknown | DisplayState::BuiltUnproven
+        ) && self
+            .reasons
+            .iter()
+            .any(|reason| reason.fact.recheck_reason().is_some())
+    }
+
+    pub fn why(&self) -> &'static str {
+        if self.needs_recheck() {
+            return "Recorded evidence needs rechecking against this project.";
+        }
         match self.display {
             DisplayState::Proven => "Current recorded proof supports this capability.",
             DisplayState::BuiltUnproven => {
@@ -305,6 +369,10 @@ pub(crate) struct FocusSelection {
 pub enum ModelWarning {
     PinnedGapAlreadyProven(String),
     StaleEvidenceOnly(String),
+    ReceiptNeedsRecheck {
+        capability_id: String,
+        reason: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -336,6 +404,13 @@ impl EvaluatedProject {
                 "\"{}\" has only stale verification evidence; it does not count as current proof.",
                 self.capability_label(id)
             ),
+            ModelWarning::ReceiptNeedsRecheck {
+                capability_id,
+                reason,
+            } => format!(
+                "\"{}\" needs recheck: {reason}",
+                self.capability_label(capability_id)
+            ),
         })
     }
 
@@ -356,6 +431,13 @@ impl EvaluatedProject {
             .capability(&selection.capability_id)
             .expect("evaluated focus must reference a capability");
         let (kind, mut summary, action_heading, action_instruction) = match capability.display {
+            _ if capability.needs_recheck() => (
+                FocusKind::NeedsProof,
+                "Recorded evidence needs rechecking against the current inputs and required check."
+                    .to_owned(),
+                "RECHECK NEEDED",
+                capability.intent.proof_needed.clone(),
+            ),
             DisplayState::Missing => (
                 FocusKind::JourneyBreak,
                 "Required implementation is recorded absent.".to_owned(),

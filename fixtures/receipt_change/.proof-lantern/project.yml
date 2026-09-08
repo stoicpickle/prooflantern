@@ -1,0 +1,27 @@
+# Synthetic receipt fixture: the tracked file changed after a recorded check.
+schema_version: 1
+project:
+  name: Receipt Change — Synthetic Demo
+  promise: Know when a saved result needs checking again.
+capabilities:
+  - id: reopen
+    label: Reopen saved recipes
+    map_label: Reopen
+    role:
+      kind: core
+      order: 1
+    proof_needed: Close the app, reopen it, and confirm the recipe appears.
+    manual_evidence:
+      - claim: implementation_present
+        freshness: current
+        summary: Synthetic example of a recorded implementation observation.
+      - claim: verification_passed
+        freshness: current
+        summary: Synthetic earlier pass; the tracked file has since changed.
+        receipt:
+          recorded_at: "2026-09-07T12:00:00Z"
+          proof_needed: Close the app, reopen it, and confirm the recipe appears.
+          inputs:
+            - path: check.txt
+              # SHA-256 of the original bytes "hello" (without a newline).
+              sha256: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824

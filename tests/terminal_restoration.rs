@@ -28,6 +28,9 @@ enum ExitPath {
     InjectedPanic,
     QuitKey,
     ControlCKey,
+    RefreshQuit,
+    RefreshControlC,
+    RefreshPanic,
 }
 
 impl ExitPath {
@@ -35,9 +38,41 @@ impl ExitPath {
         match self {
             Self::QuitKey => Some(b"q"),
             Self::ControlCKey => Some(b"\x03"),
+            Self::RefreshQuit | Self::RefreshControlC | Self::RefreshPanic => Some(b"r"),
             Self::InjectedNormal | Self::InjectedError | Self::InjectedPanic => None,
         }
     }
+}
+
+#[test]
+fn refresh_then_q_quits_while_the_worker_is_pending_and_restores() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::RefreshQuit);
+    assert!(outcome.status.success(), "{:?}", outcome.status);
+    assert!(contains_bytes(&outcome.output, b"LAST LOADED MAP"));
+    assert_restored(&outcome.output);
+}
+
+#[test]
+fn refresh_then_control_c_quits_while_the_worker_is_pending_and_restores() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::RefreshControlC);
+    assert!(outcome.status.success(), "{:?}", outcome.status);
+    assert!(contains_bytes(&outcome.output, b"LAST LOADED MAP"));
+    assert_restored(&outcome.output);
+}
+
+#[test]
+fn unexpected_refresh_worker_panic_restores_and_exits() {
+    let _guard = serialize_pty_test();
+    let outcome = run_in_pty(ExitPath::RefreshPanic);
+    assert!(!outcome.status.success(), "{:?}", outcome.status);
+    assert_restored(&outcome.output);
+    assert_occurs_before(
+        &outcome.output,
+        LEAVE_ALTERNATE_SCREEN,
+        b"injected refresh worker panic",
+    );
 }
 
 #[test]
@@ -113,9 +148,20 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
         .expect("test PTY should open");
 
     let mut command = CommandBuilder::new(env!("CARGO_BIN_EXE_proof-lantern"));
-    command.arg("demo");
+    if matches!(
+        exit_path,
+        ExitPath::RefreshQuit | ExitPath::RefreshControlC | ExitPath::RefreshPanic
+    ) {
+        command.arg(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/guided_setup"),
+        );
+    } else {
+        command.arg("demo");
+    }
     command.env("TERM", "xterm-256color");
     command.env("RUST_BACKTRACE", "0");
+    command.env_remove("PROOF_LANTERN_TEST_REFRESH");
+    command.env_remove("PROOF_LANTERN_TEST_TERMINAL_EXIT");
     match exit_path {
         ExitPath::InjectedNormal => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "ok"),
         ExitPath::InjectedError => command.env("PROOF_LANTERN_TEST_TERMINAL_EXIT", "error"),
@@ -123,6 +169,10 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
         ExitPath::QuitKey | ExitPath::ControlCKey => {
             command.env_remove("PROOF_LANTERN_TEST_TERMINAL_EXIT");
         }
+        ExitPath::RefreshQuit | ExitPath::RefreshControlC => {
+            command.env("PROOF_LANTERN_TEST_REFRESH", "pause")
+        }
+        ExitPath::RefreshPanic => command.env("PROOF_LANTERN_TEST_REFRESH", "panic"),
     }
 
     let mut child = pair
@@ -138,9 +188,8 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
         .take_writer()
         .expect("PTY input writer should open");
     let (output_sender, output_receiver) = mpsc::sync_channel(1);
-    let input = exit_path.input();
     thread::spawn(move || {
-        let result = read_terminal_output(&mut reader, &mut writer, input);
+        let result = read_terminal_output(&mut reader, &mut writer, exit_path);
         let _ = output_sender.send(result);
     });
     drop(pair.slave);
@@ -169,12 +218,13 @@ fn run_in_pty(exit_path: ExitPath) -> PtyOutcome {
 fn read_terminal_output(
     reader: &mut dyn Read,
     writer: &mut dyn Write,
-    input: Option<&[u8]>,
+    exit_path: ExitPath,
 ) -> io::Result<Vec<u8>> {
     let mut output = Vec::new();
     let mut buffer = [0_u8; 4096];
     let mut cursor_position_answered = false;
     let mut input_sent = false;
+    let mut refresh_exit_sent = false;
     loop {
         let bytes_read = reader.read(&mut buffer)?;
         if bytes_read == 0 {
@@ -198,11 +248,23 @@ fn read_terminal_output(
             cursor_position_answered = true;
         }
         if !input_sent && contains_bytes(&output, ENTER_ALTERNATE_SCREEN) {
-            if let Some(input) = input {
+            if let Some(input) = exit_path.input() {
                 writer.write_all(input)?;
                 writer.flush()?;
             }
             input_sent = true;
+        }
+        if !refresh_exit_sent && contains_bytes(&output, b"LAST LOADED MAP") {
+            let input: Option<&[u8]> = match exit_path {
+                ExitPath::RefreshQuit => Some(b"q"),
+                ExitPath::RefreshControlC => Some(b"\x03"),
+                _ => None,
+            };
+            if let Some(input) = input {
+                writer.write_all(input)?;
+                writer.flush()?;
+            }
+            refresh_exit_sent = true;
         }
     }
 }

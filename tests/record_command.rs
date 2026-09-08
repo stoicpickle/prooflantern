@@ -188,6 +188,12 @@ fn record_keeps_superseded_manual_results_as_stale_history() {
     )
     .expect("manual evidence should be valid JSON");
     assert_eq!(manual.records.len(), 2);
+    assert!(
+        manual
+            .records
+            .iter()
+            .all(|record| record.fact.receipt.is_some())
+    );
     assert_eq!(manual.records[0].fact.freshness, Freshness::Stale);
     assert_eq!(manual.records[1].fact.freshness, Freshness::Current);
 
@@ -197,6 +203,204 @@ fn record_keeps_superseded_manual_results_as_stale_history() {
         evaluated.capability("start").unwrap().display,
         DisplayState::ProofFailed
     );
+}
+
+#[test]
+fn receipt_tracks_selected_bytes_and_load_does_not_rewrite_history() {
+    use sha2::{Digest, Sha256};
+
+    let project = TempProject::new("receipt changes");
+    fs::write(project.root().join("source.txt"), b"before").unwrap();
+    fs::write(project.root().join("binary input.bin"), [0, 255, 42]).unwrap();
+    let output = run(
+        &[
+            "record",
+            "start",
+            "passed",
+            "--summary",
+            "I checked the starting step.",
+            "--input",
+            "source.txt",
+            "--input",
+            "binary input.bin",
+            "--input",
+            "source.txt",
+        ],
+        project.root(),
+    );
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let evidence_file = project.root().join(".proof-lantern/manual-evidence.json");
+    let before = fs::read(&evidence_file).unwrap();
+    let manual: ManualEvidenceSet = serde_json::from_slice(&before).unwrap();
+    let receipt = manual.records[0].fact.receipt.as_ref().unwrap();
+    assert!(
+        time::OffsetDateTime::parse(
+            &receipt.recorded_at,
+            &time::format_description::well_known::Rfc3339
+        )
+        .is_ok()
+    );
+    assert_eq!(receipt.inputs.len(), 2);
+    assert_eq!(receipt.inputs[0].path, "binary input.bin");
+    assert_eq!(
+        receipt.inputs[0].sha256,
+        format!("{:x}", Sha256::digest([0, 255, 42]))
+    );
+    assert!(!String::from_utf8_lossy(&before).contains("receipt_check"));
+
+    let (spec, observations) = load_project(project.root()).unwrap();
+    assert_eq!(
+        evaluate(spec, observations)
+            .unwrap()
+            .capability("start")
+            .unwrap()
+            .display,
+        DisplayState::Proven
+    );
+    // Same length: this must detect bytes, not merely file size or line count.
+    fs::write(project.root().join("source.txt"), b"after!").unwrap();
+    let output = run(&["next"], project.root());
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let next = String::from_utf8(output.stdout).unwrap();
+    assert!(next.contains("RECHECK NEEDED"), "{next}");
+    assert!(next.contains("source.txt"), "{next}");
+    assert!(!next.contains("CORE JOURNEY PROVEN"), "{next}");
+    let output = run(&["explain", "start"], project.root());
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let explain = String::from_utf8(output.stdout).unwrap();
+    for expected in [
+        "Source: HUMAN",
+        "Freshness: STALE",
+        "Recorded at:",
+        "NEEDS RECHECK",
+        "Tracked inputs (SHA-256)",
+    ] {
+        assert!(explain.contains(expected), "missing {expected}: {explain}");
+    }
+    assert_eq!(fs::read(&evidence_file).unwrap(), before);
+    // Supersede the old receipt without losing its fingerprint or mutating intent.
+    let output = run(
+        &[
+            "record",
+            "start",
+            "passed",
+            "--summary",
+            "I checked the changed starting step.",
+            "--input",
+            "source.txt",
+        ],
+        project.root(),
+    );
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let manual: ManualEvidenceSet =
+        serde_json::from_slice(&fs::read(evidence_file).unwrap()).unwrap();
+    assert_eq!(manual.records[0].fact.freshness, Freshness::Stale);
+    assert_eq!(manual.records[0].fact.receipt.as_ref(), Some(receipt));
+    assert_eq!(manual.records[1].fact.freshness, Freshness::Current);
+    let (spec, observations) = load_project(project.root()).unwrap();
+    assert_eq!(
+        evaluate(spec, observations)
+            .unwrap()
+            .capability("start")
+            .unwrap()
+            .display,
+        DisplayState::Proven
+    );
+}
+
+#[test]
+fn receipt_without_inputs_tracks_check_text_but_does_not_claim_code_tracking() {
+    let project = TempProject::new("receipt check text");
+    let output = run(
+        &["record", "start", "failed", "--summary", "Starting failed."],
+        project.root(),
+    );
+    assert!(output.status.success(), "{:?}", output.stderr);
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("No input files tracked")
+    );
+    fs::write(project.root().join("untracked.rs"), "changed").unwrap();
+    let (spec, observations) = load_project(project.root()).unwrap();
+    assert_eq!(
+        evaluate(spec, observations)
+            .unwrap()
+            .capability("start")
+            .unwrap()
+            .display,
+        DisplayState::ProofFailed
+    );
+    let file = project.root().join(".proof-lantern/project.yml");
+    let text = fs::read_to_string(&file).unwrap().replace(
+        "Describe one visible check that proves the journey can start.",
+        "Use the new starting workflow.",
+    );
+    fs::write(file, text).unwrap();
+    let output = run(&["explain", "start"], project.root());
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.contains("Freshness: STALE"), "{text}");
+    assert!(text.contains("Proof requirement changed"), "{text}");
+    assert!(
+        text.contains("Tracked inputs: none; code changes are not detected."),
+        "{text}"
+    );
+}
+
+#[test]
+fn invalid_receipt_inputs_never_replace_existing_evidence() {
+    let project = TempProject::new("invalid receipt");
+    for directory in ["nested/.proof-lantern", "vendor/.GIT"] {
+        fs::create_dir_all(project.root().join(directory)).unwrap();
+    }
+    fs::write(
+        project.root().join("nested/.proof-lantern/project.yml"),
+        "nested metadata",
+    )
+    .unwrap();
+    fs::write(project.root().join("vendor/.GIT/config"), "nested metadata").unwrap();
+    let output = run(
+        &[
+            "record",
+            "start",
+            "built",
+            "--summary",
+            "Implementation exists.",
+        ],
+        project.root(),
+    );
+    assert!(output.status.success(), "{:?}", output.stderr);
+    let evidence_file = project.root().join(".proof-lantern/manual-evidence.json");
+    let before = fs::read(&evidence_file).unwrap();
+    for input in [
+        "../escape.txt",
+        "/absolute.txt",
+        ".proof-lantern/manual-evidence.json",
+        ".git/config",
+        ".PROOF-LANTERN/manual-evidence.json",
+        "nested/.proof-lantern/project.yml",
+        "vendor/.GIT/config",
+        ".proof-lantern./manual-evidence.json",
+        "absent.txt",
+        "bad:stream",
+        "./alias.txt",
+    ] {
+        let output = run(
+            &[
+                "record",
+                "start",
+                "passed",
+                "--summary",
+                "Must not write.",
+                "--input",
+                input,
+            ],
+            project.root(),
+        );
+        assert!(!output.status.success(), "unexpected success for {input}");
+        assert_eq!(fs::read(&evidence_file).unwrap(), before);
+    }
 }
 
 #[test]
@@ -298,26 +502,38 @@ fn record_refuses_to_hide_conflicting_project_authored_evidence() {
 
 #[cfg(feature = "terminal-test-hooks")]
 #[test]
-fn concurrent_record_processes_preserve_both_results() {
+fn concurrent_record_processes_preserve_all_results() {
     let project = TempProject::new("concurrent");
     let spawn = |summary: &str| {
         Command::new(env!("CARGO_BIN_EXE_proof-lantern"))
             .args(["record", "start", "passed", "--summary", summary])
             .arg(project.root())
-            .env("PROOF_LANTERN_TEST_RECORD_PAUSE_MS", "250")
+            .env("PROOF_LANTERN_TEST_RECORD_PAUSE_MS", "50")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .expect("concurrent Proof Lantern process should start")
     };
 
-    let first = spawn("The first concurrent check passed.");
-    let second = spawn("The second concurrent check passed.");
-    for child in [first, second] {
-        let output = child
-            .wait_with_output()
-            .expect("concurrent Proof Lantern process should finish");
-        assert!(output.status.success(), "{:?}", output.stderr);
+    let summaries: Vec<_> = (1..=8)
+        .map(|index| format!("Concurrent check {index} passed."))
+        .collect();
+    let children: Vec<_> = summaries.iter().map(|summary| spawn(summary)).collect();
+    // Reap every process before an assertion can drop the temporary project.
+    let outputs: Vec<_> = children
+        .into_iter()
+        .map(|child| {
+            child
+                .wait_with_output()
+                .expect("concurrent Proof Lantern process should finish")
+        })
+        .collect();
+    for output in outputs {
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     let manual: ManualEvidenceSet = serde_json::from_str(
@@ -325,7 +541,13 @@ fn concurrent_record_processes_preserve_both_results() {
             .expect("manual evidence should be readable"),
     )
     .expect("manual evidence should be valid JSON");
-    assert_eq!(manual.records.len(), 2, "{manual:?}");
+    assert_eq!(manual.records.len(), summaries.len(), "{manual:?}");
+    assert!(
+        manual
+            .records
+            .iter()
+            .all(|record| record.fact.receipt.is_some())
+    );
     assert_eq!(
         manual
             .records
@@ -340,12 +562,9 @@ fn concurrent_record_processes_preserve_both_results() {
             .iter()
             .filter(|record| record.fact.freshness == Freshness::Stale)
             .count(),
-        1
+        summaries.len() - 1
     );
-    for summary in [
-        "The first concurrent check passed.",
-        "The second concurrent check passed.",
-    ] {
+    for summary in summaries {
         assert!(
             manual
                 .records

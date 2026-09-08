@@ -1,0 +1,34 @@
+---
+source: tests/render_smoke.rs
+expression: screen
+---
+┌ PROJECT STATUS ──────────────────────────────────────────────────────────────────────────────────┐
+│PROOF LANTERN // RECEIPT CHANGE — SYNTHETIC DEMO   FOCUS  REOPEN SAVED RECIPES                    │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ ACCEPTED CORE JOURNEY ───────────────────────────────────────────────────────────────────────────┐
+│PROMISE                                                                                           │
+│“Know when a saved result needs checking again.”                                                  │
+│                                                                                                  │
+│┌────────────────────────────────────────────────────────────────────────────────────────────────┐│
+││◐ REOPEN                                                                                        ││
+││BUILT /                                                                                         ││
+││UNPROVEN                                                                                        ││
+│└────────────────────────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                                  │
+┌ INSPECTOR ───────────────────────────────────────────────────────────────────────────────────────┐
+│◐ REOPEN SAVED RECIPES                                                                            │
+│BUILT / UNPROVEN   ◇ ACCEPTED                                                                     │
+│ID  reopen                                                                                        │
+│WHY                                                                                               │
+│Recorded evidence needs rechecking against this project.                                          │
+│                                                                                                  │
+│EVIDENCE — NEEDS RECHECK                                                                          │
+│HUMAN  Synthetic example of a recorded implementation observation.  (+1 more)                     │
+│PROOF NEEDED                                                                                      │
+│Close the app, reopen it, and confirm the recipe appears.                                         │
+│RUN FROM MAP ROOT                                                                                 │
+│proof-lantern explain reopen                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
+│←→ NODE   E CLOSE   G FOCUS   R REFRESH   Q EXIT                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘

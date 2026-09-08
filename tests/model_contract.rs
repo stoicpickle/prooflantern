@@ -10,6 +10,39 @@ fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/recipe_box")
 }
 
+#[test]
+fn pure_evaluation_cannot_promote_an_unchecked_receipt() {
+    let (mut spec, _) = load_project(fixture_root()).unwrap();
+    let add = spec
+        .capabilities
+        .iter_mut()
+        .find(|item| item.id == "add")
+        .unwrap();
+    add.manual_evidence.push(
+        serde_json::from_value(serde_json::json!({
+            "claim": "verification_passed",
+            "freshness": "current",
+            "summary": "Not checked against the project by the loader.",
+            "receipt": {
+                "recorded_at": "2026-09-07T12:00:00Z",
+                "proof_needed": add.proof_needed,
+                "inputs": []
+            }
+        }))
+        .unwrap(),
+    );
+    let evaluated = evaluate(spec, ObservationSet::default()).unwrap();
+    assert_eq!(
+        evaluated.capability("add").unwrap().display,
+        DisplayState::Unknown
+    );
+    assert!(
+        evaluated
+            .warning_messages()
+            .any(|message| message.contains("not been checked"))
+    );
+}
+
 fn assert_focus(
     project: &EvaluatedProject,
     capability_id: &str,
@@ -138,6 +171,8 @@ fn current_focus_language_tracks_the_selected_evidence_state() {
         capability_id: "add".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The current add check failed.".into(),
@@ -167,6 +202,8 @@ fn current_focus_language_tracks_the_selected_evidence_state() {
             capability_id: "reopen".into(),
             source: MachineSource::ImportedTestResult,
             fact: EvidenceFact {
+                receipt: None,
+                receipt_check: Default::default(),
                 claim: Claim::VerificationPassed,
                 freshness: Freshness::Current,
                 summary: "A conflicting current result says reopen passed.".into(),
@@ -244,6 +281,8 @@ fn a_static_scan_cannot_claim_runtime_absence_or_proof() {
         capability_id: "find".into(),
         source: MachineSource::StaticScan,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "invalid authority".into(),
@@ -270,6 +309,8 @@ fn machine_observations_must_reference_inspectable_evidence() {
         capability_id: "find".into(),
         source: MachineSource::StaticScan,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::ImplementationPresent,
             freshness: Freshness::Current,
             summary: "A scanner claims implementation exists without saying where.".into(),
@@ -292,6 +333,8 @@ fn contradictory_current_evidence_stays_visible() {
         capability_id: "reopen".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A conflicting imported result claims the flow passed.".into(),
@@ -319,6 +362,8 @@ fn unknown_observations_and_parent_paths_are_rejected() {
             capability_id: "ghost".into(),
             source: MachineSource::StaticScan,
             fact: EvidenceFact {
+                receipt: None,
+                receipt_check: Default::default(),
                 claim: Claim::ImplementationPresent,
                 freshness: Freshness::Current,
                 summary: "Ghost source".into(),
@@ -387,6 +432,8 @@ fn current_failure_precedes_the_stale_pass_it_replaced() {
         capability_id: "add".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The replacement add-recipe check failed.".into(),
@@ -416,6 +463,8 @@ fn the_evidence_that_forms_a_conflict_precedes_other_current_history() {
         capability_id: "reopen".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "A current check failed before the reopen flow ran.".into(),
@@ -430,6 +479,8 @@ fn the_evidence_that_forms_a_conflict_precedes_other_current_history() {
         capability_id: "reopen".into(),
         source: MachineSource::StaticScan,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::ImplementationPresent,
             freshness: Freshness::Current,
             summary: "A current scan found a reopen implementation.".into(),
@@ -474,6 +525,8 @@ fn opposing_verification_facts_precede_duplicate_current_history() {
             source: MachineSource::ImportedTestResult,
             fact: EvidenceFact {
                 claim,
+                receipt: None,
+                receipt_check: Default::default(),
                 freshness: Freshness::Current,
                 summary: summary.into(),
                 location: Some(EvidenceLocation {
@@ -505,6 +558,8 @@ fn absent_and_passing_facts_precede_duplicate_current_history() {
             capability_id: "reopen".into(),
             source: MachineSource::ImportedTestResult,
             fact: EvidenceFact {
+                receipt: None,
+                receipt_check: Default::default(),
                 claim: Claim::VerificationPassed,
                 freshness: Freshness::Current,
                 summary: summary.into(),
@@ -532,6 +587,8 @@ fn blocked_descendants_are_found_through_a_proven_intermediate() {
         capability_id: "find".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationPassed,
             freshness: Freshness::Current,
             summary: "A recorded search check passed.".into(),
@@ -613,6 +670,8 @@ fn a_failing_proof_does_not_claim_that_implementation_exists() {
         capability_id: "find".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The recorded find check failed before reaching implementation.".into(),
@@ -627,6 +686,8 @@ fn a_failing_proof_does_not_claim_that_implementation_exists() {
         capability_id: "reopen".into(),
         source: MachineSource::ImportedTestResult,
         fact: EvidenceFact {
+            receipt: None,
+            receipt_check: Default::default(),
             claim: Claim::VerificationFailed,
             freshness: Freshness::Current,
             summary: "The recorded reopen check also failed.".into(),

@@ -1,0 +1,1 @@
+Changed synthetic input. This fixture does not execute a test.

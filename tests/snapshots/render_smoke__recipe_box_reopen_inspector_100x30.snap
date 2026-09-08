@@ -22,7 +22,7 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │WHY                                                                                               │
 │Explicit current evidence says the required implementation is absent.                             │
 │                                                                                                  │
-│EVIDENCE                                                                                          │
+│EVIDENCE — NO CHANGE TRACKING                                                                     │
 │HUMAN  The builder confirmed that no reopen flow has been implemented.                            │
 │PROOF NEEDED                                                                                      │
 │Close app, reopen it, and confirm the saved recipe appears.                                       │
@@ -30,5 +30,5 @@ expression: "render_screen(100, 30, true, \"reopen\")"
 │proof-lantern explain reopen                                                                      │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌ COMMAND ─────────────────────────────────────────────────────────────────────────────────────────┐
-│←→ NODE   E CLOSE   G FOCUS   Q EXIT                                                              │
+│←→ NODE   E CLOSE   G FOCUS   R REFRESH   Q EXIT                                                  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────┘

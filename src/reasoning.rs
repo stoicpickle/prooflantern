@@ -56,7 +56,16 @@ pub fn evaluate(
         );
         let (implementation, verification, display) = derive_states(&reasons);
         order_reasons(&mut reasons, implementation, verification, display);
-        if verification == VerificationState::Stale {
+        if let Some(reason) = reasons
+            .iter()
+            .find_map(|reason| reason.fact.recheck_reason())
+            && matches!(display, DisplayState::Unknown | DisplayState::BuiltUnproven)
+        {
+            warnings.push(ModelWarning::ReceiptNeedsRecheck {
+                capability_id: capability.id.clone(),
+                reason: reason.to_owned(),
+            });
+        } else if verification == VerificationState::Stale {
             warnings.push(ModelWarning::StaleEvidenceOnly(capability.id.clone()));
         }
         assessments.push(CapabilityAssessment {
@@ -87,11 +96,11 @@ fn derive_states(
 ) -> (ImplementationState, VerificationState, DisplayState) {
     let current_claims: BTreeSet<_> = reasons
         .iter()
-        .filter(|reason| reason.fact.freshness == Freshness::Current)
+        .filter(|reason| reason.fact.effective_freshness() == Freshness::Current)
         .map(|reason| claim_rank(reason.fact.claim))
         .collect();
     let stale_verification = reasons.iter().any(|reason| {
-        reason.fact.freshness == Freshness::Stale
+        reason.fact.effective_freshness() == Freshness::Stale
             && matches!(
                 reason.fact.claim,
                 Claim::VerificationPassed | Claim::VerificationFailed
@@ -144,7 +153,7 @@ fn order_reasons(
     let keys: Vec<_> = reasons
         .iter()
         .map(|reason| {
-            let freshness = freshness_order(reason.fact.freshness);
+            let freshness = freshness_order(reason.fact.effective_freshness());
             let group = reason_group(reason.fact.claim, implementation, verification, display);
             let occurrence = occurrences.entry((freshness, group)).or_insert(0_usize);
             let key = (
@@ -428,6 +437,11 @@ pub(crate) fn is_portable_capability_id(value: &str) -> bool {
 }
 
 fn validate_fact(fact: &EvidenceFact, capability_id: &str, errors: &mut Vec<String>) {
+    if let Some(receipt) = &fact.receipt
+        && let Err(reason) = crate::receipts::validate_receipt(receipt)
+    {
+        errors.push(format!("receipt for {capability_id} is invalid: {reason}"));
+    }
     if fact.summary.trim().is_empty() {
         errors.push(format!(
             "evidence for {capability_id} must have a nonblank summary"
